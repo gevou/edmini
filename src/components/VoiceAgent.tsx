@@ -13,6 +13,8 @@ interface Message {
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
+const STORAGE_KEY = "ed_openai_key";
+
 function MicIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -60,7 +62,76 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   error: "Something went wrong — tap to retry",
 };
 
+function KeyInput({ onSave }: { onSave: (key: string) => void }) {
+  const [value, setValue] = useState("");
+  const accentColor = "#f59e0b";
+
+  return (
+    <div
+      className="flex flex-col w-full max-w-lg mx-auto"
+      style={{
+        minHeight: "100dvh",
+        paddingTop: "max(env(safe-area-inset-top), 20px)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
+        paddingLeft: "env(safe-area-inset-left, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
+      }}
+    >
+      <header className="px-6 pt-4 pb-2 shrink-0">
+        <h1
+          className="text-5xl font-black tracking-tight leading-none"
+          style={{ fontFamily: "var(--font-syne)", color: accentColor }}
+        >
+          Ed
+        </h1>
+        <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
+          voice agent
+        </p>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
+        <div className="text-center">
+          <p className="text-white/50 text-sm">Enter your OpenAI API key to get started</p>
+          <p className="text-white/25 text-xs mt-1">Stored in session only — never sent to our servers</p>
+        </div>
+
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          <input
+            type="password"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) onSave(value.trim()); }}
+            placeholder="sk-…"
+            autoComplete="off"
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: "rgba(255,255,255,0.8)",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(245,158,11,0.4)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; }}
+          />
+          <button
+            onClick={() => { if (value.trim()) onSave(value.trim()); }}
+            disabled={!value.trim()}
+            className="w-full rounded-xl py-3 text-sm font-medium tracking-wider uppercase transition-all active:scale-95 disabled:opacity-30"
+            style={{
+              background: "rgba(245,158,11,0.12)",
+              border: "1px solid rgba(245,158,11,0.28)",
+              color: accentColor,
+            }}
+          >
+            Connect
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VoiceAgent() {
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [messages, setMessages] = useState<Message[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -69,6 +140,24 @@ export default function VoiceAgent() {
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) setApiKey(stored);
+  }, []);
+
+  const saveKey = useCallback((key: string) => {
+    sessionStorage.setItem(STORAGE_KEY, key);
+    setApiKey(key);
+  }, []);
+
+  const clearKey = useCallback(() => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setApiKey(null);
+    setStatus("idle");
+    setMessages([]);
+    setErrorMsg(null);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     transcriptRef.current?.scrollTo({
@@ -130,7 +219,10 @@ export default function VoiceAgent() {
     setStatus("connecting");
 
     try {
-      const sessionRes = await fetch("/api/session", { method: "POST" });
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["x-openai-key"] = apiKey;
+
+      const sessionRes = await fetch("/api/session", { method: "POST", headers });
       if (!sessionRes.ok) {
         const err = await sessionRes.json();
         throw new Error(err.error ?? "Failed to create session");
@@ -175,7 +267,7 @@ export default function VoiceAgent() {
       setStatus("error");
       stopSession();
     }
-  }, [handleDataChannelMessage]);
+  }, [handleDataChannelMessage, apiKey]);
 
   const stopSession = useCallback(() => {
     dcRef.current?.close();
@@ -191,9 +283,11 @@ export default function VoiceAgent() {
     else stopSession();
   }, [status, startSession, stopSession]);
 
-  const isActive = status === "listening" || status === "speaking" || status === "connecting";
+  if (!apiKey) {
+    return <KeyInput onSave={saveKey} />;
+  }
 
-  // Colors driving the active state
+  const isActive = status === "listening" || status === "speaking" || status === "connecting";
   const accentColor = status === "speaking" ? "#a78bfa" : status === "error" ? "#f87171" : "#f59e0b";
 
   const buttonIcon =
@@ -213,16 +307,26 @@ export default function VoiceAgent() {
       }}
     >
       {/* Header */}
-      <header className="px-6 pt-4 pb-2 shrink-0">
-        <h1
-          className="text-5xl font-black tracking-tight leading-none"
-          style={{ fontFamily: "var(--font-syne)", color: accentColor, transition: "color 0.4s ease" }}
+      <header className="px-6 pt-4 pb-2 shrink-0 flex items-start justify-between">
+        <div>
+          <h1
+            className="text-5xl font-black tracking-tight leading-none"
+            style={{ fontFamily: "var(--font-syne)", color: accentColor, transition: "color 0.4s ease" }}
+          >
+            Ed
+          </h1>
+          <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
+            voice agent
+          </p>
+        </div>
+        <button
+          onClick={clearKey}
+          title="Change API key"
+          className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
+          style={{ minHeight: 36, padding: "0 4px" }}
         >
-          Ed
-        </h1>
-        <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
-          voice agent
-        </p>
+          key
+        </button>
       </header>
 
       {/* Transcript */}
@@ -277,7 +381,6 @@ export default function VoiceAgent() {
 
         {/* Button with pulse rings */}
         <div className="relative flex items-center justify-center">
-          {/* Outer ring */}
           {(status === "listening" || status === "speaking") && (
             <span
               className="absolute rounded-full"
@@ -290,7 +393,6 @@ export default function VoiceAgent() {
               }}
             />
           )}
-          {/* Inner ring */}
           {(status === "listening" || status === "speaking") && (
             <span
               className="absolute rounded-full"
@@ -322,7 +424,6 @@ export default function VoiceAgent() {
             }}
           >
             {isActive && status !== "connecting" ? (
-              // Show "end" icon on active states (still tapable to stop)
               <div className="flex flex-col items-center gap-1">
                 {buttonIcon}
               </div>
@@ -332,7 +433,6 @@ export default function VoiceAgent() {
           </button>
         </div>
 
-        {/* End button shown separately when active — larger tap area */}
         {isActive && status !== "connecting" && (
           <button
             onClick={stopSession}
