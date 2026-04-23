@@ -1,7 +1,9 @@
 node_modules/
 .env
+.env.local
 build/
 dist/
+.next/
 .DS_Store
 Pods/
 DerivedData/
