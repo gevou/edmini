@@ -196,7 +196,7 @@ export default function VoiceAgent() {
       }
     }
 
-    if (type === "response.text.delta") {
+    if (type === "response.audio_transcript.delta" || type === "response.text.delta") {
       const delta = serverEvent.delta as string;
       const itemId = serverEvent.item_id as string;
       if (delta && itemId) {
@@ -208,9 +208,12 @@ export default function VoiceAgent() {
       }
     }
 
-    if (type === "response.text.done") {
+    if (type === "response.audio_transcript.done" || type === "response.text.done") {
       const itemId = serverEvent.item_id as string;
-      setMessages((prev) => prev.map((m) => m.id === itemId ? { ...m, final: true } : m));
+      const transcript = serverEvent.transcript as string | undefined;
+      setMessages((prev) => prev.map((m) =>
+        m.id === itemId ? { ...m, text: transcript ?? m.text, final: true } : m
+      ));
     }
   }, []);
 

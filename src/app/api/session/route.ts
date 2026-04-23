@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         type: "server_vad",
         threshold: 0.5,
         prefix_padding_ms: 300,
-        silence_duration_ms: 2000,
+        silence_duration_ms: 800,
       },
       input_audio_transcription: {
         model: "whisper-1",
