@@ -1,19 +1,8 @@
-# Dependencies
 node_modules/
-
-# Environment
 .env
-.env.local
-.env.*.local
-
-# Build output
 build/
 dist/
-
-# macOS
 .DS_Store
-
-# iOS / Xcode
 Pods/
 DerivedData/
 *.xcworkspace
