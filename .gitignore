@@ -6,3 +6,5 @@ dist/
 Pods/
 DerivedData/
 *.xcworkspace
+.next/
+next-env.d.ts
