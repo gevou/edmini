@@ -169,13 +169,16 @@ export default function VoiceAgent() {
 
   const postTurnToThread = useCallback(async (userText: string, edText: string) => {
     try {
+      const classifyHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) classifyHeaders["x-openai-key"] = apiKey;
       const res = await fetch("/api/threads/classify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: classifyHeaders,
         body: JSON.stringify({ utterance: userText }),
       });
       if (!res.ok) return;
       const { threadId } = await res.json() as { threadId: string };
+      if (!threadId || threadId === "general") return;
       await Promise.all([
         fetch(`/api/threads/${threadId}/message`, {
           method: "POST",
@@ -191,7 +194,7 @@ export default function VoiceAgent() {
     } catch {
       // background — swallow errors silently
     }
-  }, []);
+  }, [apiKey]);
 
   useEffect(() => {
     scrollToBottom();
@@ -219,7 +222,15 @@ export default function VoiceAgent() {
         setMessages((prev) => {
           const existing = prev.find((m) => m.id === itemId);
           if (existing) return prev.map((m) => m.id === itemId ? { ...m, text: transcript, final: true } : m);
-          return [...prev, { id: itemId, role: "user", text: transcript, final: true }];
+          const newMsg: Message = { id: itemId, role: "user", text: transcript, final: true };
+          // Insert before any streaming (non-final) assistant message so user always precedes Ed's response
+          const streamingIdx = prev.findIndex((m) => m.role === "assistant" && !m.final);
+          if (streamingIdx !== -1) {
+            const next = [...prev];
+            next.splice(streamingIdx, 0, newMsg);
+            return next;
+          }
+          return [...prev, newMsg];
         });
       }
     }
@@ -336,9 +347,8 @@ export default function VoiceAgent() {
 
   return (
     <div
-      className="flex flex-col w-full max-w-lg mx-auto"
+      className="fixed inset-0 flex flex-col w-full max-w-lg mx-auto"
       style={{
-        minHeight: "100dvh",
         paddingTop: "max(env(safe-area-inset-top), 20px)",
         paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",

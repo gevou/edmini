@@ -7,8 +7,9 @@ export async function POST(request: Request) {
   if (!body.utterance) {
     return NextResponse.json({ error: "utterance required" }, { status: 400 });
   }
+  const clientKey = request.headers.get("x-openai-key") ?? undefined;
   const threads = getThreads();
-  const threadId = await classifyThread(body.utterance as string, threads);
+  const threadId = await classifyThread(body.utterance as string, threads, clientKey);
   const confidence = threadId === "general" ? 0 : 0.85;
   return NextResponse.json({ threadId, confidence });
 }

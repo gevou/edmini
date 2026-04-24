@@ -1,7 +1,7 @@
 import type { Thread } from "./thread-manager";
 
-export async function classifyThread(utterance: string, threads: Thread[]): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
+export async function classifyThread(utterance: string, threads: Thread[], clientKey?: string): Promise<string> {
+  const apiKey = clientKey ?? process.env.OPENAI_API_KEY;
   if (!apiKey || threads.length === 0) return "general";
 
   const threadList = threads

@@ -29,6 +29,13 @@
   50% { opacity: 0; }
 }
 
+/* Brief flash when a thread receives a new message */
+@keyframes badge-flash {
+  0% { opacity: 0.35; }
+  20% { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  100% { opacity: 0.35; }
+}
+
 /* Smooth tap highlight suppression on mobile */
 * {
   -webkit-tap-highlight-color: transparent;
