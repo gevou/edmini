@@ -101,6 +101,40 @@ function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }
   );
 }
 
+function mergeThreads(prev: Thread[], next: Thread[]): Thread[] {
+  const merged = new Map<string, Thread>();
+
+  // Seed with all previously seen threads
+  for (const t of prev) {
+    merged.set(t.id, { ...t });
+  }
+
+  // Merge in server response
+  for (const t of next) {
+    const existing = merged.get(t.id);
+    if (!existing) {
+      merged.set(t.id, t);
+      continue;
+    }
+    // Union messages by timestamp — keep all seen, add any new ones
+    const seenTs = new Set(existing.history.map((m) => m.timestamp));
+    const newMessages = t.history.filter((m) => !seenTs.has(m.timestamp));
+    merged.set(t.id, {
+      ...existing,
+      // Update metadata/summary/status from server, but never shrink history
+      name: t.name,
+      status: t.status,
+      summary: t.summary,
+      category: t.category,
+      metadata: t.metadata,
+      lastActivity: Math.max(existing.lastActivity, t.lastActivity),
+      history: [...existing.history, ...newMessages].sort((a, b) => a.timestamp - b.timestamp),
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
 export default function Dashboard() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
@@ -119,7 +153,7 @@ export default function Dashboard() {
           }
           prevActivityRef.current.set(thread.id, thread.lastActivity);
         }
-        setThreads(data);
+        setThreads((prev) => mergeThreads(prev, data));
         if (newlyActive.length > 0) {
           setFlashingIds((ids) => new Set([...ids, ...newlyActive]));
           setTimeout(() => {
