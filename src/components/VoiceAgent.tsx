@@ -142,17 +142,17 @@ export default function VoiceAgent() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) setApiKey(stored);
   }, []);
 
   const saveKey = useCallback((key: string) => {
-    sessionStorage.setItem(STORAGE_KEY, key);
+    localStorage.setItem(STORAGE_KEY, key);
     setApiKey(key);
   }, []);
 
   const clearKey = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
     setApiKey(null);
     setStatus("idle");
     setMessages([]);
