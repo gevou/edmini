@@ -4,11 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Role = "user" | "assistant";
 
-interface Message {
+interface TurnMsg {
   id: string;
-  role: Role;
   text: string;
   final: boolean;
+}
+
+interface Turn {
+  turnId: string;
+  userMsg: TurnMsg | null;
+  edMsg: TurnMsg | null;
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -70,7 +75,10 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
     <div
       className="flex flex-col w-full max-w-lg mx-auto"
       style={{
-        minHeight: "100dvh",
+        height: "100dvh",
+        overflow: "hidden",
+        touchAction: "none",
+        overscrollBehavior: "none",
         paddingTop: "max(env(safe-area-inset-top), 20px)",
         paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",
@@ -133,7 +141,7 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
 export default function VoiceAgent() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [status, setStatus] = useState<AgentStatus>("idle");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -141,6 +149,7 @@ export default function VoiceAgent() {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const pendingUserTextRef = useRef<string | null>(null);
+  const pendingEdTextRef = useRef<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -156,7 +165,7 @@ export default function VoiceAgent() {
     localStorage.removeItem(STORAGE_KEY);
     setApiKey(null);
     setStatus("idle");
-    setMessages([]);
+    setTurns([]);
     setErrorMsg(null);
   }, []);
 
@@ -199,7 +208,7 @@ export default function VoiceAgent() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [turns, scrollToBottom]);
 
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
     let serverEvent: Record<string, unknown>;
@@ -215,49 +224,79 @@ export default function VoiceAgent() {
     if (type === "response.audio.delta") setStatus("speaking");
     if (type === "response.done") setStatus("listening");
 
-    if (type === "conversation.item.input_audio_transcription.completed") {
-      const transcript = serverEvent.transcript as string;
-      if (transcript?.trim()) {
-        pendingUserTextRef.current = transcript.trim();
-        const itemId = serverEvent.item_id as string;
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === itemId);
-          if (existing) return prev.map((m) => m.id === itemId ? { ...m, text: transcript, final: true } : m);
-          // Insert user message before the last assistant message so chronological order is preserved
-          // (Ed's response deltas arrive before user transcript is ready)
-          const lastIdx = prev.length - 1;
-          if (lastIdx >= 0 && prev[lastIdx].role === "assistant") {
-            return [...prev.slice(0, lastIdx), { id: itemId, role: "user" as Role, text: transcript, final: true }, prev[lastIdx]];
-          }
-          return [...prev, { id: itemId, role: "user" as Role, text: transcript, final: true }];
-        });
-      }
-    }
-
+    // Ed streaming — create/update turn keyed by Ed's item_id
     if (type === "response.audio_transcript.delta" || type === "response.text.delta") {
       const delta = serverEvent.delta as string;
       const itemId = serverEvent.item_id as string;
       if (delta && itemId) {
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === itemId);
-          if (existing) return prev.map((m) => m.id === itemId ? { ...m, text: m.text + delta } : m);
-          return [...prev, { id: itemId, role: "assistant", text: delta, final: false }];
+        setTurns((prev) => {
+          const idx = prev.findIndex((t) => t.edMsg?.id === itemId);
+          if (idx >= 0) {
+            const updated = [...prev];
+            const turn = updated[idx];
+            updated[idx] = { ...turn, edMsg: { ...turn.edMsg!, text: turn.edMsg!.text + delta } };
+            return updated;
+          }
+          // New Ed response → new turn
+          return [...prev, { turnId: itemId, userMsg: null, edMsg: { id: itemId, text: delta, final: false } }];
         });
       }
     }
 
+    // Ed transcript finalized
     if (type === "response.audio_transcript.done" || type === "response.text.done") {
       const itemId = serverEvent.item_id as string;
       const transcript = serverEvent.transcript as string | undefined;
-      setMessages((prev) => prev.map((m) =>
-        m.id === itemId ? { ...m, text: transcript ?? m.text, final: true } : m
+      setTurns((prev) => prev.map((t) =>
+        t.edMsg?.id === itemId
+          ? { ...t, edMsg: { ...t.edMsg!, text: transcript ?? t.edMsg!.text, final: true } }
+          : t
       ));
-      if (type === "response.audio_transcript.done") {
-        const edText = transcript;
+      // Try to post turn — user transcript may arrive after this
+      if (type === "response.audio_transcript.done" && transcript) {
         const userText = pendingUserTextRef.current;
-        if (edText && userText) {
+        if (userText) {
           pendingUserTextRef.current = null;
-          postTurnToThread(userText, edText);
+          pendingEdTextRef.current = null;
+          postTurnToThread(userText, transcript);
+        } else {
+          pendingEdTextRef.current = transcript;
+        }
+      }
+    }
+
+    // User transcript — always arrives after Ed's response
+    if (type === "conversation.item.input_audio_transcription.completed") {
+      const transcript = serverEvent.transcript as string;
+      const itemId = serverEvent.item_id as string;
+      if (transcript?.trim()) {
+        const text = transcript.trim();
+        setTurns((prev) => {
+          // Already in a turn?
+          const existingIdx = prev.findIndex((t) => t.userMsg?.id === itemId);
+          if (existingIdx >= 0) {
+            return prev.map((t, i) =>
+              i === existingIdx ? { ...t, userMsg: { id: itemId, text, final: true } } : t
+            );
+          }
+          // Assign to oldest turn without a user message (FIFO pairing)
+          const unmatchedIdx = prev.findIndex((t) => t.userMsg === null);
+          if (unmatchedIdx >= 0) {
+            return prev.map((t, i) =>
+              i === unmatchedIdx ? { ...t, userMsg: { id: itemId, text, final: true } } : t
+            );
+          }
+          // Standalone user turn (no Ed response paired yet)
+          return [...prev, { turnId: `u-${itemId}`, userMsg: { id: itemId, text, final: true }, edMsg: null }];
+        });
+        // Try to post turn — Ed text may already be stored
+        const edText = pendingEdTextRef.current;
+        if (edText) {
+          pendingUserTextRef.current = null;
+          pendingEdTextRef.current = null;
+          postTurnToThread(text, edText);
+        } else {
+          pendingUserTextRef.current = text;
         }
       }
     }
@@ -344,8 +383,15 @@ export default function VoiceAgent() {
     status === "speaking" ? <WaveBars color={accentColor} /> :
     <MicIcon />;
 
-  // Solid background colour that matches the dark theme (Carbon Warmth)
   const bgColor = "#0e0a04";
+
+  // Flatten turns into ordered messages: user first, then Ed, within each turn
+  const flatMessages: Array<{ id: string; role: Role; text: string; final: boolean }> = turns.flatMap((turn) => {
+    const items: Array<{ id: string; role: Role; text: string; final: boolean }> = [];
+    if (turn.userMsg) items.push({ ...turn.userMsg, role: "user" });
+    if (turn.edMsg) items.push({ ...turn.edMsg, role: "assistant" });
+    return items;
+  });
 
   return (
     <div
@@ -356,6 +402,8 @@ export default function VoiceAgent() {
         maxWidth: 512,
         margin: "0 auto",
         overflow: "hidden",
+        touchAction: "none",
+        overscrollBehavior: "none",
       }}
     >
       {/* Fixed header */}
@@ -388,19 +436,21 @@ export default function VoiceAgent() {
         </button>
       </header>
 
-      {/* Scrollable transcript */}
+      {/* Scrollable transcript — only this area scrolls */}
       <div
         ref={transcriptRef}
-        className="flex-1 overflow-y-auto overscroll-contain"
+        className="flex-1 overflow-y-auto"
         style={{
           WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
+          touchAction: "pan-y",
           padding: "12px 16px",
           display: "flex",
           flexDirection: "column",
           gap: 12,
         }}
       >
-        {messages.length === 0 ? (
+        {flatMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
             <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
             <p className="text-white/20 text-sm text-center">
@@ -409,7 +459,7 @@ export default function VoiceAgent() {
             <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
           </div>
         ) : (
-          messages.map((msg) => (
+          flatMessages.map((msg) => (
             <div
               key={msg.id}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}

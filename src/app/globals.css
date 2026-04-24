@@ -29,11 +29,26 @@
   50% { opacity: 0; }
 }
 
-/* Brief flash when a thread receives a new message */
+/* Flash when a thread receives a new message — 2.5s, 3 pulses, amber glow ring */
 @keyframes badge-flash {
-  0% { opacity: 0.35; }
-  20% { opacity: 1; box-shadow: 0 0 8px currentColor; }
-  100% { opacity: 0.35; }
+  0%   { opacity: 0.35; transform: scale(1); box-shadow: none; }
+  12%  { opacity: 1;    transform: scale(1.12); box-shadow: 0 0 0 3px rgba(245,158,11,0.45), 0 0 14px rgba(245,158,11,0.35); }
+  25%  { opacity: 0.55; transform: scale(1);    box-shadow: none; }
+  45%  { opacity: 1;    transform: scale(1.10); box-shadow: 0 0 0 2px rgba(245,158,11,0.35), 0 0 10px rgba(245,158,11,0.25); }
+  58%  { opacity: 0.55; transform: scale(1);    box-shadow: none; }
+  75%  { opacity: 1;    transform: scale(1.07); box-shadow: 0 0 0 2px rgba(245,158,11,0.25), 0 0 8px rgba(245,158,11,0.18); }
+  88%  { opacity: 0.55; transform: scale(1);    box-shadow: none; }
+  100% { opacity: 0.35; transform: scale(1);    box-shadow: none; }
+}
+
+@keyframes dot-flash {
+  0%   { transform: scale(1); }
+  12%  { transform: scale(1.5); }
+  25%  { transform: scale(1); }
+  45%  { transform: scale(1.4); }
+  58%  { transform: scale(1); }
+  75%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 /* Smooth tap highlight suppression on mobile */
@@ -41,8 +56,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Full-height viewport for iOS */
+/* Full-height viewport for iOS — lock page scroll, only inner containers scroll */
 html, body {
   height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
 }

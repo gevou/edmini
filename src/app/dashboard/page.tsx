@@ -42,19 +42,62 @@ function StatusBadge({ status, flashing }: { status: string; flashing?: boolean 
         background: c.bg,
         border: `1px solid ${c.border}`,
         color: c.text,
-        opacity: 0.35,
-        animation: flashing ? "badge-flash 1.1s ease-out forwards" : "none",
+        opacity: flashing ? undefined : 0.35,
+        animation: flashing ? "badge-flash 2.5s ease-out forwards" : "none",
       }}
     >
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+      <span
+        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+        style={{
+          background: c.dot,
+          animation: flashing ? "dot-flash 2.5s ease-out forwards" : "none",
+        }}
+      />
       {status}
     </span>
   );
 }
 
+function MessageBubble({ msg }: { msg: ThreadMessage }) {
+  const isUser = msg.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className="max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed"
+        style={
+          isUser
+            ? { background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.20)", color: "rgba(255,255,255,0.75)" }
+            : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.55)" }
+        }
+      >
+        <span
+          className="text-[10px] tracking-wider uppercase mr-1.5"
+          style={{ color: isUser ? "rgba(245,158,11,0.6)" : "rgba(167,139,250,0.6)" }}
+        >
+          {msg.role}
+        </span>
+        {msg.content}
+      </div>
+    </div>
+  );
+}
+
 function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }) {
   const icon = CATEGORY_ICON[thread.category] ?? "◦";
-  const lastMsg = thread.history[thread.history.length - 1];
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevHistoryLen = useRef(thread.history.length);
+
+  useEffect(() => {
+    if (thread.history.length !== prevHistoryLen.current) {
+      prevHistoryLen.current = thread.history.length;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [thread.history.length]);
+
+  // Auto-scroll to bottom on initial mount if there are messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+  }, []);
 
   return (
     <div
@@ -76,15 +119,28 @@ function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }
 
       <p className="text-white/50 text-xs leading-relaxed">{thread.summary}</p>
 
-      {lastMsg && (
-        <div
-          className="rounded-xl px-3 py-2 text-xs text-white/35 leading-relaxed"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
-        >
-          <span className="text-white/20 uppercase tracking-wider mr-2">{lastMsg.role}</span>
-          {lastMsg.content.length > 120 ? lastMsg.content.slice(0, 120) + "…" : lastMsg.content}
-        </div>
-      )}
+      {/* Scrollable message history */}
+      <div
+        className="flex flex-col gap-1.5 overflow-y-auto rounded-xl"
+        style={{
+          minHeight: thread.history.length > 0 ? 200 : 48,
+          maxHeight: 300,
+          padding: thread.history.length > 0 ? "8px" : "0",
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        {thread.history.length === 0 ? (
+          <p className="text-white/15 text-xs text-center py-3">No messages yet</p>
+        ) : (
+          <>
+            {thread.history.map((msg, i) => (
+              <MessageBubble key={i} msg={msg} />
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
 
       <div className="flex items-center justify-between mt-1">
         <span className="text-white/20 text-xs tracking-wider uppercase">{thread.category}</span>
@@ -148,7 +204,6 @@ export default function Dashboard() {
       const res = await fetch("/api/threads");
       if (res.ok) {
         const data = await res.json() as Thread[];
-        // Detect threads that received new messages since last poll
         const newlyActive: string[] = [];
         for (const thread of data) {
           const prev = prevActivityRef.current.get(thread.id);
@@ -167,7 +222,7 @@ export default function Dashboard() {
               newlyActive.forEach((id) => next.delete(id));
               return next;
             });
-          }, 1200);
+          }, 2600);
         }
       }
     } catch {
@@ -186,7 +241,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className="min-h-dvh p-4 md:p-8"
+      className="min-h-dvh p-4 md:p-8 overflow-y-auto"
       style={{ fontFamily: "var(--font-dm-sans)" }}
     >
       {/* Header */}
