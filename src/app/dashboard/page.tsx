@@ -135,6 +135,43 @@ function mergeThreads(prev: Thread[], next: Thread[]): Thread[] {
   return Array.from(merged.values());
 }
 
+function ConversationPanel({ threads }: { threads: Thread[] }) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const allMessages = threads
+    .flatMap((t) => t.history)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [allMessages.length]);
+
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-3 h-full"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      <h2 className="text-white/90 font-semibold text-sm shrink-0" style={{ fontFamily: "var(--font-syne)" }}>
+        Conversation
+      </h2>
+      <div
+        className="flex-1 flex flex-col gap-1.5 overflow-y-auto rounded-xl"
+        style={{ padding: "8px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", minHeight: 200 }}
+      >
+        {allMessages.length === 0 ? (
+          <p className="text-white/15 text-xs text-center py-3">No conversation yet</p>
+        ) : (
+          <>
+            {allMessages.map((msg, i) => (
+              <MessageBubble key={i} msg={msg} />
+            ))}
+            <div ref={endRef} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
@@ -191,26 +228,44 @@ export default function Dashboard() {
           </h1>
           <p className="text-white/30 text-xs tracking-widest uppercase">thread dashboard</p>
         </div>
-        <a
-          href="/"
-          className="text-xs tracking-widest uppercase transition-colors"
-          style={{ color: "rgba(255,255,255,0.25)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#f59e0b")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}
-        >
-          voice →
-        </a>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => { setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
+            className="text-xs tracking-widest uppercase transition-colors"
+            style={{ color: "rgba(255,255,255,0.25)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}
+          >
+            reset
+          </button>
+          <a
+            href="/"
+            className="text-xs tracking-widest uppercase transition-colors"
+            style={{ color: "rgba(255,255,255,0.25)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#f59e0b")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}
+          >
+            voice →
+          </a>
+        </div>
       </header>
 
-      {threads.length === 0 ? (
-        <div className="text-white/20 text-sm text-center py-16">Loading threads…</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {threads.map((t) => (
-            <ThreadCard key={t.id} thread={t} flashing={flashingIds.has(t.id)} />
-          ))}
+      <div className="flex gap-6 items-start">
+        <div className="w-80 shrink-0 sticky top-8" style={{ height: "calc(100vh - 160px)" }}>
+          <ConversationPanel threads={threads} />
         </div>
-      )}
+        <div className="flex-1">
+          {threads.length === 0 ? (
+            <div className="text-white/20 text-sm text-center py-16">Loading threads…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {threads.map((t) => (
+                <ThreadCard key={t.id} thread={t} flashing={flashingIds.has(t.id)} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

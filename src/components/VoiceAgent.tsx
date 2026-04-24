@@ -489,10 +489,10 @@ export default function VoiceAgent() {
 
       {/* Fixed button area */}
       <div
-        className="shrink-0 flex flex-col items-center gap-5"
+        className="shrink-0 flex flex-col items-center gap-5 backdrop-blur-xl"
         style={{
           padding: "16px 24px max(env(safe-area-inset-bottom), 24px)",
-          background: bgColor,
+          background: "linear-gradient(to bottom, transparent 0%, rgba(9,9,15,0.85) 40%, rgba(9,9,15,1) 70%)",
           zIndex: 10,
         }}
       >
