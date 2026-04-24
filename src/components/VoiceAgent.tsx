@@ -140,6 +140,7 @@ export default function VoiceAgent() {
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const pendingUserTextRef = useRef<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -166,6 +167,32 @@ export default function VoiceAgent() {
     });
   }, []);
 
+  const postTurnToThread = useCallback(async (userText: string, edText: string) => {
+    try {
+      const res = await fetch("/api/threads/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ utterance: userText }),
+      });
+      if (!res.ok) return;
+      const { threadId } = await res.json() as { threadId: string };
+      await Promise.all([
+        fetch(`/api/threads/${threadId}/message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "user", content: userText }),
+        }),
+        fetch(`/api/threads/${threadId}/message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "ed", content: edText }),
+        }),
+      ]);
+    } catch {
+      // background — swallow errors silently
+    }
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
@@ -187,6 +214,7 @@ export default function VoiceAgent() {
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
+        pendingUserTextRef.current = transcript.trim();
         const itemId = serverEvent.item_id as string;
         setMessages((prev) => {
           const existing = prev.find((m) => m.id === itemId);
@@ -214,8 +242,16 @@ export default function VoiceAgent() {
       setMessages((prev) => prev.map((m) =>
         m.id === itemId ? { ...m, text: transcript ?? m.text, final: true } : m
       ));
+      if (type === "response.audio_transcript.done") {
+        const edText = transcript;
+        const userText = pendingUserTextRef.current;
+        if (edText && userText) {
+          pendingUserTextRef.current = null;
+          postTurnToThread(userText, edText);
+        }
+      }
     }
-  }, []);
+  }, [postTurnToThread]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
