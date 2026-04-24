@@ -2,9 +2,9 @@
 echo "🚀 Ed Mini Hackathon Startup"
 echo "============================"
 
-# Start OpenClaw Gateway
+# Start OpenClaw Gateway (requires Node 22)
 echo "Starting OpenClaw Gateway..."
-openclaw &
+PATH="/Users/me/.nvm/versions/node/v22.14.0/bin:$PATH" openclaw &
 OPENCLAW_PID=$!
 echo "OpenClaw started (PID: $OPENCLAW_PID) at http://localhost:18789"
 
