@@ -3,12 +3,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { Thread, ThreadMessage } from "@/lib/thread-manager";
 
-const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  active:  { bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.30)", text: "#f59e0b",  dot: "#f59e0b" },
-  waiting: { bg: "rgba(161,161,170,0.08)", border: "rgba(161,161,170,0.20)", text: "#a1a1aa", dot: "#a1a1aa" },
-  blocked: { bg: "rgba(248,113,113,0.10)", border: "rgba(248,113,113,0.30)", text: "#f87171", dot: "#f87171" },
-  done:    { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.25)", text: "#a78bfa",  dot: "#a78bfa" },
-};
 
 const CATEGORY_ICON: Record<string, string> = {
   publishing:  "✦",
@@ -33,22 +27,16 @@ interface ActivityItem {
   message: ThreadMessage;
 }
 
-function StatusBadge({ status, flashing }: { status: string; flashing?: boolean }) {
-  const c = STATUS_COLORS[status] ?? STATUS_COLORS.waiting;
+function StatusBadge({ flashing }: { flashing?: boolean }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide uppercase"
+      className="w-3 h-3 rounded-full flex-shrink-0"
       style={{
-        background: c.bg,
-        border: `1px solid ${c.border}`,
-        color: c.text,
+        background: "#52525b",
         opacity: 0.35,
         animation: flashing ? "badge-flash 1.1s ease-out forwards" : "none",
       }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.dot }} />
-      {status}
-    </span>
+    />
   );
 }
 
@@ -71,7 +59,7 @@ function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }
             {thread.name}
           </h2>
         </div>
-        <StatusBadge status={thread.status} flashing={flashing} />
+        <StatusBadge flashing={flashing} />
       </div>
 
       <p className="text-white/50 text-xs leading-relaxed">{thread.summary}</p>
