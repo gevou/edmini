@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { Thread, ThreadMessage } from "@/lib/thread-manager";
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
@@ -33,27 +33,26 @@ interface ActivityItem {
   message: ThreadMessage;
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, flashing }: { status: string; flashing?: boolean }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS.waiting;
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide uppercase"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+        opacity: 0.35,
+        animation: flashing ? "badge-flash 1.1s ease-out forwards" : "none",
+      }}
     >
-      <span
-        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-        style={{
-          background: c.dot,
-          boxShadow: status === "active" ? `0 0 6px ${c.dot}` : "none",
-          animation: status === "active" ? "pulse 2s ease-in-out infinite" : "none",
-        }}
-      />
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.dot }} />
       {status}
     </span>
   );
 }
 
-function ThreadCard({ thread }: { thread: Thread }) {
+function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }) {
   const icon = CATEGORY_ICON[thread.category] ?? "◦";
   const lastMsg = thread.history[thread.history.length - 1];
 
@@ -72,7 +71,7 @@ function ThreadCard({ thread }: { thread: Thread }) {
             {thread.name}
           </h2>
         </div>
-        <StatusBadge status={thread.status} />
+        <StatusBadge status={thread.status} flashing={flashing} />
       </div>
 
       <p className="text-white/50 text-xs leading-relaxed">{thread.summary}</p>
@@ -141,14 +140,35 @@ function ActivityFeed({ threads }: { threads: Thread[] }) {
 export default function Dashboard() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
+  const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
+  const prevActivityRef = useRef<Map<string, number>>(new Map());
 
   const fetchThreads = useCallback(async () => {
     try {
       const res = await fetch("/api/threads");
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as Thread[];
+        // Detect threads that received new messages since last poll
+        const newlyActive: string[] = [];
+        for (const thread of data) {
+          const prev = prevActivityRef.current.get(thread.id);
+          if (prev !== undefined && thread.lastActivity > prev) {
+            newlyActive.push(thread.id);
+          }
+          prevActivityRef.current.set(thread.id, thread.lastActivity);
+        }
         setThreads(data);
         setLastRefresh(Date.now());
+        if (newlyActive.length > 0) {
+          setFlashingIds((ids) => new Set([...ids, ...newlyActive]));
+          setTimeout(() => {
+            setFlashingIds((ids) => {
+              const next = new Set(ids);
+              newlyActive.forEach((id) => next.delete(id));
+              return next;
+            });
+          }, 1200);
+        }
       }
     } catch {
       // silently retry on next poll
@@ -210,7 +230,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {threads.map((t) => (
-                <ThreadCard key={t.id} thread={t} />
+                <ThreadCard key={t.id} thread={t} flashing={flashingIds.has(t.id)} />
               ))}
             </div>
           )}
