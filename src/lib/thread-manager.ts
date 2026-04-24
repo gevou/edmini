@@ -41,13 +41,22 @@ const SEED_THREADS: Thread[] = [
     lastActivity: Date.now() - 1000 * 60 * 5,
   },
   {
-    id: "vercel-interview",
-    name: "Vercel Interview",
+    id: "product-launch-planning",
+    name: "Product Launch Planning",
     status: "waiting",
-    category: "career",
-    summary: "Call with Caro scheduled Tue Apr 28 8am. Workflow SDK take-home pending. Need to explore workflowsdk.dev.",
+    category: "publishing",
+    summary: "Q3 product launch meeting next week. Need to finalize feature list, prepare demo, send stakeholder invites. Waiting on design team for mockups.",
     history: [],
     lastActivity: Date.now() - 1000 * 60 * 60 * 2,
+  },
+  {
+    id: "general",
+    name: "General",
+    status: "active",
+    category: "engineering",
+    summary: "General conversations and unclassified messages.",
+    history: [],
+    lastActivity: Date.now() - 1000 * 60 * 60 * 24,
   },
 ];
 

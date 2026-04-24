@@ -70,7 +70,7 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
     <div
       className="flex flex-col w-full max-w-lg mx-auto"
       style={{
-        minHeight: "100dvh",
+        height: "100dvh",
         paddingTop: "max(env(safe-area-inset-top), 20px)",
         paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",
@@ -211,6 +211,16 @@ export default function VoiceAgent() {
     if (type === "response.audio.delta") setStatus("speaking");
     if (type === "response.done") setStatus("listening");
 
+    if (type === "conversation.item.created") {
+      const item = serverEvent.item as { id: string; role?: string; type?: string } | undefined;
+      if (item?.role === "user" && item?.type === "message") {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === item.id)) return prev;
+          return [...prev, { id: item.id, role: "user", text: "", final: false }];
+        });
+      }
+    }
+
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
@@ -338,7 +348,7 @@ export default function VoiceAgent() {
     <div
       className="flex flex-col w-full max-w-lg mx-auto"
       style={{
-        minHeight: "100dvh",
+        height: "100dvh",
         paddingTop: "max(env(safe-area-inset-top), 20px)",
         paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",
