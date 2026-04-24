@@ -174,6 +174,24 @@ export default function VoiceAgent() {
   }, []);
 
   const postTurnToThread = useCallback(async (userText: string, edText: string) => {
+    const now = Date.now();
+    try {
+      // Always log to the full conversation log
+      await Promise.all([
+        fetch("/api/conversation/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "user", content: userText, timestamp: now }),
+        }),
+        fetch("/api/conversation/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "ed", content: edText, timestamp: now + 1 }),
+        }),
+      ]);
+    } catch {
+      // background — swallow errors silently
+    }
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey) headers["x-openai-key"] = apiKey;
@@ -492,7 +510,7 @@ export default function VoiceAgent() {
         className="shrink-0 flex flex-col items-center gap-5"
         style={{
           padding: "16px 24px max(env(safe-area-inset-bottom), 24px)",
-          background: bgColor,
+          background: "linear-gradient(to bottom, transparent, rgba(14,10,4,0.85) 30%, rgba(14,10,4,1) 60%)",
           zIndex: 10,
         }}
       >
