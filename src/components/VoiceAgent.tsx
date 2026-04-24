@@ -169,13 +169,17 @@ export default function VoiceAgent() {
 
   const postTurnToThread = useCallback(async (userText: string, edText: string) => {
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["x-openai-key"] = apiKey;
+
       const res = await fetch("/api/threads/classify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ utterance: userText }),
       });
       if (!res.ok) return;
       const { threadId } = await res.json() as { threadId: string };
+      if (threadId === "general") return;
       await Promise.all([
         fetch(`/api/threads/${threadId}/message`, {
           method: "POST",
@@ -191,7 +195,7 @@ export default function VoiceAgent() {
     } catch {
       // background — swallow errors silently
     }
-  }, []);
+  }, [apiKey]);
 
   useEffect(() => {
     scrollToBottom();
@@ -219,7 +223,13 @@ export default function VoiceAgent() {
         setMessages((prev) => {
           const existing = prev.find((m) => m.id === itemId);
           if (existing) return prev.map((m) => m.id === itemId ? { ...m, text: transcript, final: true } : m);
-          return [...prev, { id: itemId, role: "user", text: transcript, final: true }];
+          // Insert user message before the last assistant message so chronological order is preserved
+          // (Ed's response deltas arrive before user transcript is ready)
+          const lastIdx = prev.length - 1;
+          if (lastIdx >= 0 && prev[lastIdx].role === "assistant") {
+            return [...prev.slice(0, lastIdx), { id: itemId, role: "user" as Role, text: transcript, final: true }, prev[lastIdx]];
+          }
+          return [...prev, { id: itemId, role: "user" as Role, text: transcript, final: true }];
         });
       }
     }
@@ -334,19 +344,29 @@ export default function VoiceAgent() {
     status === "speaking" ? <WaveBars color={accentColor} /> :
     <MicIcon />;
 
+  // Solid background colour that matches the dark theme (Carbon Warmth)
+  const bgColor = "#0e0a04";
+
   return (
     <div
-      className="flex flex-col w-full max-w-lg mx-auto"
       style={{
-        minHeight: "100dvh",
-        paddingTop: "max(env(safe-area-inset-top), 20px)",
-        paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
-        paddingLeft: "env(safe-area-inset-left, 0px)",
-        paddingRight: "env(safe-area-inset-right, 0px)",
+        height: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        maxWidth: 512,
+        margin: "0 auto",
+        overflow: "hidden",
       }}
     >
-      {/* Header */}
-      <header className="px-6 pt-4 pb-2 shrink-0 flex items-start justify-between">
+      {/* Fixed header */}
+      <header
+        className="shrink-0 flex items-start justify-between"
+        style={{
+          padding: "max(env(safe-area-inset-top), 20px) 24px 8px",
+          background: bgColor,
+          zIndex: 10,
+        }}
+      >
         <div>
           <h1
             className="text-5xl font-black tracking-tight leading-none"
@@ -368,11 +388,17 @@ export default function VoiceAgent() {
         </button>
       </header>
 
-      {/* Transcript */}
+      {/* Scrollable transcript */}
       <div
         ref={transcriptRef}
-        className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 overscroll-contain"
-        style={{ WebkitOverflowScrolling: "touch" }}
+        className="flex-1 overflow-y-auto overscroll-contain"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          padding: "12px 16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
@@ -412,8 +438,15 @@ export default function VoiceAgent() {
         )}
       </div>
 
-      {/* Button area */}
-      <div className="shrink-0 flex flex-col items-center gap-5 px-6 pt-4">
+      {/* Fixed button area */}
+      <div
+        className="shrink-0 flex flex-col items-center gap-5"
+        style={{
+          padding: "16px 24px max(env(safe-area-inset-bottom), 24px)",
+          background: bgColor,
+          zIndex: 10,
+        }}
+      >
         {errorMsg && (
           <p className="text-red-400/80 text-xs text-center max-w-xs">{errorMsg}</p>
         )}

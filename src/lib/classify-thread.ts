@@ -1,8 +1,8 @@
 import type { Thread } from "./thread-manager";
 
-export async function classifyThread(utterance: string, threads: Thread[]): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || threads.length === 0) return "general";
+export async function classifyThread(utterance: string, threads: Thread[], apiKey?: string): Promise<string> {
+  const key = apiKey ?? process.env.OPENAI_API_KEY;
+  if (!key || threads.length === 0) return "general";
 
   const threadList = threads
     .map((t) => {
@@ -14,7 +14,7 @@ export async function classifyThread(utterance: string, threads: Thread[]): Prom
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
