@@ -72,3 +72,4 @@ Or connect the GitHub repo in Vercel dashboard and set env vars there.
 - **Tailwind CSS v4** — mobile-first styling
 - **OpenAI Realtime API** — GPT-4o with WebRTC transport
 - **Vercel** — deployment platform
+
