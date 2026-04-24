@@ -49,6 +49,15 @@ const SEED_THREADS: Thread[] = [
     history: [],
     lastActivity: Date.now() - 1000 * 60 * 60 * 2,
   },
+  {
+    id: "general",
+    name: "General",
+    status: "active",
+    category: "engineering",
+    summary: "General conversations and unclassified messages.",
+    history: [],
+    lastActivity: Date.now() - 1000 * 60 * 60 * 24,
+  },
 ];
 
 let threads: Thread[] = [];
