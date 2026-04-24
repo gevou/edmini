@@ -56,9 +56,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Full-height viewport for iOS — lock page scroll, only inner containers scroll */
+/* Full-height viewport for iOS — position:fixed is the nuclear option that prevents ALL page-level scroll */
 html, body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }

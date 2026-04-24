@@ -1,19 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-
-type Role = "user" | "assistant";
-
-interface TurnMsg {
-  id: string;
-  text: string;
-  final: boolean;
-}
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 interface Turn {
-  turnId: string;
-  userMsg: TurnMsg | null;
-  edMsg: TurnMsg | null;
+  id: number;
+  userText: string | null;
+  edText: string;
+  edStreaming: boolean;
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -150,6 +143,8 @@ export default function VoiceAgent() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const pendingUserTextRef = useRef<string | null>(null);
   const pendingEdTextRef = useRef<string | null>(null);
+  const turnCounterRef = useRef(0);
+  const currentTurnIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -167,6 +162,8 @@ export default function VoiceAgent() {
     setStatus("idle");
     setTurns([]);
     setErrorMsg(null);
+    currentTurnIdRef.current = null;
+    turnCounterRef.current = 0;
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -224,35 +221,42 @@ export default function VoiceAgent() {
     if (type === "response.audio.delta") setStatus("speaking");
     if (type === "response.done") setStatus("listening");
 
-    // Ed streaming — create/update turn keyed by Ed's item_id
+    // Ed streaming — create or append to current turn
     if (type === "response.audio_transcript.delta" || type === "response.text.delta") {
       const delta = serverEvent.delta as string;
-      const itemId = serverEvent.item_id as string;
-      if (delta && itemId) {
-        setTurns((prev) => {
-          const idx = prev.findIndex((t) => t.edMsg?.id === itemId);
-          if (idx >= 0) {
-            const updated = [...prev];
-            const turn = updated[idx];
-            updated[idx] = { ...turn, edMsg: { ...turn.edMsg!, text: turn.edMsg!.text + delta } };
-            return updated;
-          }
-          // New Ed response → new turn
-          return [...prev, { turnId: itemId, userMsg: null, edMsg: { id: itemId, text: delta, final: false } }];
-        });
+      if (delta) {
+        if (currentTurnIdRef.current !== null) {
+          const activeId = currentTurnIdRef.current;
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === activeId ? { ...t, edText: t.edText + delta } : t
+            )
+          );
+        } else {
+          const newId = ++turnCounterRef.current;
+          currentTurnIdRef.current = newId;
+          setTurns((prev) => [
+            ...prev,
+            { id: newId, userText: null, edText: delta, edStreaming: true },
+          ]);
+        }
       }
     }
 
     // Ed transcript finalized
     if (type === "response.audio_transcript.done" || type === "response.text.done") {
-      const itemId = serverEvent.item_id as string;
       const transcript = serverEvent.transcript as string | undefined;
-      setTurns((prev) => prev.map((t) =>
-        t.edMsg?.id === itemId
-          ? { ...t, edMsg: { ...t.edMsg!, text: transcript ?? t.edMsg!.text, final: true } }
-          : t
-      ));
-      // Try to post turn — user transcript may arrive after this
+      const activeId = currentTurnIdRef.current;
+      currentTurnIdRef.current = null;
+      if (activeId !== null) {
+        setTurns((prev) =>
+          prev.map((t) =>
+            t.id === activeId
+              ? { ...t, edText: transcript ?? t.edText, edStreaming: false }
+              : t
+          )
+        );
+      }
       if (type === "response.audio_transcript.done" && transcript) {
         const userText = pendingUserTextRef.current;
         if (userText) {
@@ -265,31 +269,23 @@ export default function VoiceAgent() {
       }
     }
 
-    // User transcript — always arrives after Ed's response
+    // User transcript — always arrives after Ed's response; backfill into most recent unmatched turn
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcript = serverEvent.transcript as string;
-      const itemId = serverEvent.item_id as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
         setTurns((prev) => {
-          // Already in a turn?
-          const existingIdx = prev.findIndex((t) => t.userMsg?.id === itemId);
-          if (existingIdx >= 0) {
-            return prev.map((t, i) =>
-              i === existingIdx ? { ...t, userMsg: { id: itemId, text, final: true } } : t
-            );
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].userText === null) {
+              return prev.map((t, idx) =>
+                idx === i ? { ...t, userText: text } : t
+              );
+            }
           }
-          // Assign to oldest turn without a user message (FIFO pairing)
-          const unmatchedIdx = prev.findIndex((t) => t.userMsg === null);
-          if (unmatchedIdx >= 0) {
-            return prev.map((t, i) =>
-              i === unmatchedIdx ? { ...t, userMsg: { id: itemId, text, final: true } } : t
-            );
-          }
-          // Standalone user turn (no Ed response paired yet)
-          return [...prev, { turnId: `u-${itemId}`, userMsg: { id: itemId, text, final: true }, edMsg: null }];
+          // No unmatched turn — create standalone user turn
+          const newId = ++turnCounterRef.current;
+          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false }];
         });
-        // Try to post turn — Ed text may already be stored
         const edText = pendingEdTextRef.current;
         if (edText) {
           pendingUserTextRef.current = null;
@@ -358,6 +354,15 @@ export default function VoiceAgent() {
   }, [handleDataChannelMessage, apiKey]);
 
   const stopSession = useCallback(() => {
+    const activeId = currentTurnIdRef.current;
+    currentTurnIdRef.current = null;
+    if (activeId !== null) {
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === activeId ? { ...t, edStreaming: false } : t
+        )
+      );
+    }
     dcRef.current?.close();
     pcRef.current?.close();
     dcRef.current = null;
@@ -384,14 +389,6 @@ export default function VoiceAgent() {
     <MicIcon />;
 
   const bgColor = "#0e0a04";
-
-  // Flatten turns into ordered messages: user first, then Ed, within each turn
-  const flatMessages: Array<{ id: string; role: Role; text: string; final: boolean }> = turns.flatMap((turn) => {
-    const items: Array<{ id: string; role: Role; text: string; final: boolean }> = [];
-    if (turn.userMsg) items.push({ ...turn.userMsg, role: "user" });
-    if (turn.edMsg) items.push({ ...turn.edMsg, role: "assistant" });
-    return items;
-  });
 
   return (
     <div
@@ -443,6 +440,7 @@ export default function VoiceAgent() {
         style={{
           WebkitOverflowScrolling: "touch",
           overscrollBehavior: "contain",
+          overscrollBehaviorY: "contain",
           touchAction: "pan-y",
           padding: "12px 16px",
           display: "flex",
@@ -450,7 +448,7 @@ export default function VoiceAgent() {
           gap: 12,
         }}
       >
-        {flatMessages.length === 0 ? (
+        {turns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
             <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
             <p className="text-white/20 text-sm text-center">
@@ -459,31 +457,32 @@ export default function VoiceAgent() {
             <div className="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
           </div>
         ) : (
-          flatMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`
-                  max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed
-                  ${msg.role === "user"
-                    ? "rounded-br-sm text-white"
-                    : "rounded-bl-sm text-white/90"}
-                  ${!msg.final ? "opacity-60" : ""}
-                `}
-                style={
-                  msg.role === "user"
-                    ? { background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.25)" }
-                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }
-                }
-              >
-                {msg.text}
-                {!msg.final && (
-                  <span className="inline-block w-1 h-3 ml-1 bg-current rounded-full align-middle" style={{ animation: "pulse 1s ease-in-out infinite" }} />
-                )}
+          turns.map((turn) => (
+            <Fragment key={turn.id}>
+              {/* User bubble — always first, placeholder until transcript arrives */}
+              <div className="flex justify-end">
+                <div
+                  className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-br-sm text-white ${turn.userText === null ? "opacity-40" : ""}`}
+                  style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.25)" }}
+                >
+                  {turn.userText ?? "…"}
+                </div>
               </div>
-            </div>
+              {/* Ed bubble — always second */}
+              {(turn.edText || turn.edStreaming) && (
+                <div className="flex justify-start">
+                  <div
+                    className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-bl-sm text-white/90 ${turn.edStreaming ? "opacity-60" : ""}`}
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    {turn.edText}
+                    {turn.edStreaming && (
+                      <span className="inline-block w-1 h-3 ml-1 bg-current rounded-full align-middle" style={{ animation: "pulse 1s ease-in-out infinite" }} />
+                    )}
+                  </div>
+                </div>
+              )}
+            </Fragment>
           ))
         )}
       </div>
