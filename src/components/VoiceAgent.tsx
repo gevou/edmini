@@ -1,6 +1,9 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import EventLogPanel from "@/components/EventLogPanel";
+import { pushEvent } from "@/lib/event-log-store";
+import type { SseEnvelope, SupervisorResponse } from "@/supervisor";
 
 interface Turn {
   id: number;
@@ -12,6 +15,60 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
+
+/**
+ * Read an SSE response stream from /api/intent/classify, push every
+ * supervisor `event` envelope into the EventLogPanel store, and resolve with
+ * the final `result` envelope.
+ *
+ * The route always closes the stream; if it ends without a result, this
+ * resolves with null and the caller treats it as a soft failure.
+ */
+async function readSupervisorStream(
+  res: Response,
+): Promise<SupervisorResponse | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: SupervisorResponse | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE messages are separated by blank lines (\n\n)
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      try {
+        const envelope = JSON.parse(line.slice(6)) as SseEnvelope;
+        if (envelope.type === "event") {
+          pushEvent({
+            kind: envelope.event.kind,
+            label: envelope.event.label,
+            detail: envelope.event.detail,
+            payload: envelope.event.payload,
+          });
+        } else if (envelope.type === "result") {
+          result = envelope.result as SupervisorResponse;
+        } else if (envelope.type === "error") {
+          pushEvent({
+            kind: "error",
+            label: "Supervisor error",
+            detail: envelope.error,
+          });
+        }
+      } catch {
+        // Skip malformed envelope; the supervisor is expected to recover.
+      }
+    }
+  }
+  return result;
+}
 
 function MicIcon() {
   return (
@@ -145,6 +202,96 @@ export default function VoiceAgent() {
   const pendingEdTextRef = useRef<string | null>(null);
   const turnCounterRef = useRef(0);
   const currentTurnIdRef = useRef<number | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const modelSpeakingFlagRef = useRef<boolean>(false);
+
+  const sendToolResult = useCallback((callId: string, outputJson: string) => {
+    const dc = dcRef.current;
+    if (!dc || dc.readyState !== "open") return;
+    dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: callId,
+          output: outputJson,
+        },
+      }),
+    );
+    dc.send(JSON.stringify({ type: "response.create" }));
+  }, []);
+
+  const dispatchToolCall = useCallback(
+    async (callId: string, name: string, args: Record<string, unknown>) => {
+      if (name === "classify_and_route") {
+        pushEvent({
+          kind: "info",
+          label: "Tool call: classify_and_route",
+          detail:
+            typeof args.transcript === "string"
+              ? args.transcript
+              : "(no transcript)",
+        });
+        try {
+          const res = await fetch("/api/intent/classify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              transcript: args.transcript ?? "",
+              sessionId: sessionIdRef.current ?? "anonymous",
+              context: args.context
+                ? { metadata: { hint: args.context } }
+                : undefined,
+            }),
+          });
+          const result = await readSupervisorStream(res);
+          sendToolResult(
+            callId,
+            JSON.stringify(
+              result ?? { error: "supervisor returned no result" },
+            ),
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          pushEvent({ kind: "error", label: "Tool fetch failed", detail: message });
+          sendToolResult(callId, JSON.stringify({ error: message }));
+        }
+        return;
+      }
+
+      if (name === "cancel_pending_action") {
+        pushEvent({
+          kind: "info",
+          label: "Tool call: cancel_pending_action",
+          payload: args,
+        });
+        // Noop — would route to /api/intent/cancel once implemented.
+        pushEvent({
+          kind: "cancelled",
+          label: `Cancelled: ${(args.actionId as string) ?? "(unknown)"}`,
+          detail:
+            typeof args.reason === "string" ? args.reason : "no reason given",
+        });
+        sendToolResult(
+          callId,
+          JSON.stringify({
+            acknowledged: true,
+            actionId: args.actionId,
+            reason: args.reason,
+          }),
+        );
+        return;
+      }
+
+      pushEvent({
+        kind: "error",
+        label: `Unknown tool call: ${name}`,
+        payload: args,
+      });
+      sendToolResult(callId, JSON.stringify({ error: `unknown tool ${name}` }));
+    },
+    [sendToolResult],
+  );
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -217,9 +364,39 @@ export default function VoiceAgent() {
 
     const type = serverEvent.type as string;
 
-    if (type === "input_audio_buffer.speech_started") setStatus("listening");
-    if (type === "response.audio.delta") setStatus("speaking");
-    if (type === "response.done") setStatus("listening");
+    if (type === "input_audio_buffer.speech_started") {
+      setStatus("listening");
+      pushEvent({ kind: "user_spoke", label: "User started speaking" });
+    }
+    if (type === "input_audio_buffer.speech_stopped") {
+      pushEvent({ kind: "user_paused", label: "User paused" });
+    }
+    if (type === "response.audio.delta") {
+      setStatus("speaking");
+      if (!modelSpeakingFlagRef.current) {
+        modelSpeakingFlagRef.current = true;
+        pushEvent({ kind: "model_speaking", label: "Model started speaking" });
+      }
+    }
+    if (type === "response.done") {
+      setStatus("listening");
+      modelSpeakingFlagRef.current = false;
+    }
+
+    // Tool call from the voice model — route to the supervisor via SSE
+    if (type === "response.function_call_arguments.done") {
+      const callId = serverEvent.call_id as string;
+      const name = serverEvent.name as string;
+      const argsRaw = serverEvent.arguments as string;
+      let args: Record<string, unknown> = {};
+      try {
+        args = argsRaw ? (JSON.parse(argsRaw) as Record<string, unknown>) : {};
+      } catch {
+        // fall through with empty args; supervisor will surface the error
+      }
+      // Fire-and-forget; do not block the data channel.
+      void dispatchToolCall(callId, name, args);
+    }
 
     // Ed streaming — create or append to current turn
     if (type === "response.audio_transcript.delta" || type === "response.text.delta") {
@@ -274,6 +451,7 @@ export default function VoiceAgent() {
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
+        pushEvent({ kind: "user_spoke", label: "User transcript", detail: text });
         setTurns((prev) => {
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].userText === null) {
@@ -296,11 +474,22 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToThread]);
+  }, [postTurnToThread, dispatchToolCall]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
     setStatus("connecting");
+
+    const newSessionId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? `sess_${crypto.randomUUID()}`
+        : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionIdRef.current = newSessionId;
+    pushEvent({
+      kind: "session_started",
+      label: "Voice session started",
+      detail: newSessionId,
+    });
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -368,6 +557,15 @@ export default function VoiceAgent() {
     dcRef.current = null;
     pcRef.current = null;
     if (audioElRef.current) audioElRef.current.srcObject = null;
+    modelSpeakingFlagRef.current = false;
+    if (sessionIdRef.current) {
+      pushEvent({
+        kind: "session_ended",
+        label: "Voice session ended",
+        detail: sessionIdRef.current,
+      });
+      sessionIdRef.current = null;
+    }
     setStatus("idle");
   }, []);
 
@@ -377,7 +575,12 @@ export default function VoiceAgent() {
   }, [status, startSession, stopSession]);
 
   if (!apiKey) {
-    return <KeyInput onSave={saveKey} />;
+    return (
+      <>
+        <KeyInput onSave={saveKey} />
+        <EventLogPanel />
+      </>
+    );
   }
 
   const isActive = status === "listening" || status === "speaking" || status === "connecting";
@@ -391,6 +594,7 @@ export default function VoiceAgent() {
   const bgColor = "#0e0a04";
 
   return (
+    <>
     <div
       style={{
         height: "100dvh",
@@ -442,7 +646,10 @@ export default function VoiceAgent() {
           overscrollBehavior: "contain",
           overscrollBehaviorY: "contain",
           touchAction: "pan-y",
-          padding: "12px 16px",
+          // Top/sides padding as before; bottom padding is generous so users
+          // can scroll the latest bubble well above the floating mic button.
+          padding:
+            "12px 16px calc(260px + env(safe-area-inset-bottom, 0px)) 16px",
           display: "flex",
           flexDirection: "column",
           gap: 12,
@@ -487,12 +694,25 @@ export default function VoiceAgent() {
         )}
       </div>
 
-      {/* Fixed button area */}
+      {/* Floating button area — overlays the transcript so content can scroll
+           up past it. Container is fully transparent and pointer-events:none
+           so it doesn't block taps; only the actual button + status text
+           re-enable pointer-events. */}
       <div
-        className="shrink-0 flex flex-col items-center gap-5 backdrop-blur-xl"
+        className="fixed flex flex-col items-center gap-3 pointer-events-none"
         style={{
-          padding: "16px 24px max(env(safe-area-inset-bottom), 24px)",
-          background: "linear-gradient(to bottom, transparent 0%, rgba(9,9,15,0.85) 40%, rgba(9,9,15,1) 70%)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: 0,
+          width: "100%",
+          maxWidth: 512,
+          padding:
+            "60px 24px calc(20px + env(safe-area-inset-bottom, 0px))",
+          // Subtle bottom-anchored gradient so transcript text doesn't read
+          // through hard-edged behind the button. Background is mostly
+          // transparent — visually it should feel like the mic floats.
+          background:
+            "linear-gradient(to bottom, transparent 0%, rgba(14,10,4,0.20) 40%, rgba(14,10,4,0.55) 75%, rgba(14,10,4,0.75) 100%)",
           zIndex: 10,
         }}
       >
@@ -501,7 +721,7 @@ export default function VoiceAgent() {
         )}
 
         {/* Button with pulse rings */}
-        <div className="relative flex items-center justify-center">
+        <div className="relative flex items-center justify-center pointer-events-auto">
           {(status === "listening" || status === "speaking") && (
             <span
               className="absolute rounded-full"
@@ -557,7 +777,7 @@ export default function VoiceAgent() {
         {isActive && status !== "connecting" && (
           <button
             onClick={stopSession}
-            className="text-white/30 text-xs tracking-widest uppercase active:text-white/60 transition-colors"
+            className="text-white/30 text-xs tracking-widest uppercase active:text-white/60 transition-colors pointer-events-auto"
             style={{ minHeight: 44, padding: "0 24px" }}
           >
             End
@@ -590,5 +810,7 @@ export default function VoiceAgent() {
         )}
       </div>
     </div>
+    <EventLogPanel />
+    </>
   );
 }

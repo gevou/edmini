@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { Thread, ThreadMessage } from "@/lib/thread-manager";
+import EventLogView from "@/components/EventLogView";
 
 function FlashDot({ flashing }: { flashing?: boolean }) {
   return (
@@ -250,11 +251,19 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="flex gap-6 items-start">
-        <div className="w-80 shrink-0 sticky top-8" style={{ height: "calc(100vh - 160px)" }}>
+      {/* Event log — full-width on phone, takes precedence visually */}
+      <div className="mb-6">
+        <EventLogView />
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div
+          className="w-full lg:w-80 shrink-0 lg:sticky lg:top-8"
+          style={{ height: "auto" }}
+        >
           <ConversationPanel threads={threads} />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 w-full">
           {threads.length === 0 ? (
             <div className="text-white/20 text-sm text-center py-16">Loading threads…</div>
           ) : (
