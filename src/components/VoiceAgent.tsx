@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import EventLogPanel from "@/components/EventLogPanel";
 import { pushEvent } from "@/lib/event-log-store";
-import type { SseEnvelope, SupervisorResponse } from "@/supervisor";
+import type { SupervisorResponse } from "@/supervisor";
 
 interface Turn {
   id: number;
@@ -15,60 +15,6 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
-
-/**
- * Read an SSE response stream from /api/intent/classify, push every
- * supervisor `event` envelope into the EventLogPanel store, and resolve with
- * the final `result` envelope.
- *
- * The route always closes the stream; if it ends without a result, this
- * resolves with null and the caller treats it as a soft failure.
- */
-async function readSupervisorStream(
-  res: Response,
-): Promise<SupervisorResponse | null> {
-  if (!res.body) return null;
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result: SupervisorResponse | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    // SSE messages are separated by blank lines (\n\n)
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const line = part.split("\n").find((l) => l.startsWith("data: "));
-      if (!line) continue;
-      try {
-        const envelope = JSON.parse(line.slice(6)) as SseEnvelope;
-        if (envelope.type === "event") {
-          pushEvent({
-            kind: envelope.event.kind,
-            label: envelope.event.label,
-            detail: envelope.event.detail,
-            payload: envelope.event.payload,
-          });
-        } else if (envelope.type === "result") {
-          result = envelope.result as SupervisorResponse;
-        } else if (envelope.type === "error") {
-          pushEvent({
-            kind: "error",
-            label: "Supervisor error",
-            detail: envelope.error,
-          });
-        }
-      } catch {
-        // Skip malformed envelope; the supervisor is expected to recover.
-      }
-    }
-  }
-  return result;
-}
 
 function MicIcon() {
   return (
@@ -244,7 +190,12 @@ export default function VoiceAgent() {
                 : undefined,
             }),
           });
-          const result = await readSupervisorStream(res);
+          // Supervisor events flow through the server event store + SSE now,
+          // so the response is a plain JSON SupervisorResponse — no stream
+          // parsing required here.
+          const result = res.ok
+            ? ((await res.json()) as SupervisorResponse)
+            : null;
           sendToolResult(
             callId,
             JSON.stringify(

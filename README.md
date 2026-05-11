@@ -1,41 +1,21 @@
 # Ed Mini
 
-A minimal conversational voice agent focused on natural conversation quality. Mobile-first (iPhone/iPad).
+A lightweight conversational voice agent — a stripped-down version of Edgar focused on natural conversation quality and on serving as a testbed for the supervisor / orchestration layer.
 
 ## Vision
 
 Ed is the conversational core of a larger agent system. Focus: making conversation feel natural. Memory, supervisor capabilities, and multi-channel comms build on top.
 
-## Hackathon Origins
-
-- Ship to Prod (Apr 24, 2026): Conversational core
-- Cognee AI-Memory (Apr 25, 2026): Persistent cross-conversation memory
-
----
+The UI is laid out and styled for mobile (iPhone/iPad). The voice loop itself works on any modern browser with `getUserMedia` over HTTPS.
 
 ## Architecture
 
-```
-Browser                          Server                      OpenAI
-───────                          ──────                      ──────
-Mic audio ──► RTCPeerConnection ──────────────────────────► Realtime API
-             ◄── Audio stream ◄───────────────────────────── (GPT-4o)
-             ◄── Transcripts ◄── DataChannel events ◄───────
-                                  POST /api/session
-                                  (mints ephemeral key,
-                                   keeps OPENAI_API_KEY safe)
-```
+Two layers, with a clean seam between them:
 
-**Flow:**
-1. Browser POSTs `/api/session` → server fetches ephemeral key from OpenAI (API key never exposed to client)
-2. Browser creates `RTCPeerConnection`, adds mic track, creates data channel
-3. SDP offer sent to `api.openai.com/v1/realtime` with ephemeral key
-4. OpenAI returns SDP answer → WebRTC connected
-5. Server-side VAD detects speech → sends audio to GPT-4o Realtime
-6. GPT-4o streams audio response back + text events over data channel
-7. Transcript displayed in real time
+- **Voice loop** — runs entirely in the browser via WebRTC to OpenAI's Realtime API. The server only mints ephemeral keys so `OPENAI_API_KEY` never reaches the client.
+- **Supervisor** — when the Realtime model fires the `classify_and_route` tool, the request hits `/api/intent/classify`, the supervisor pipeline runs (rephrase → classify → route), and events fan out through a server-side event store to any subscribed UI via SSE.
 
-**VAD config:** `threshold: 0.5`, `silence_duration_ms: 2000`, `prefix_padding_ms: 300`
+The supervisor is the load-bearing piece of this repo. See [src/supervisor/README.md](./src/supervisor/README.md) for the contract, transports, and wiring diagram.
 
 ## Setup
 
@@ -55,7 +35,7 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — works best on Chrome/Safari with mic permission.
+Open [http://localhost:3000](http://localhost:3000) — works best on Chrome/Safari with mic permission. Open `/dashboard` in a second tab to see the supervisor event log.
 
 ### Deploy to Vercel
 
@@ -69,7 +49,7 @@ Or connect the GitHub repo in Vercel dashboard and set env vars there.
 ## Stack
 
 - **Next.js 15** — App Router, TypeScript
-- **Tailwind CSS v4** — mobile-first styling
+- **Tailwind CSS v4** — mobile-optimized layout
 - **OpenAI Realtime API** — GPT-4o with WebRTC transport
+- **Vercel Workflow SDK** — supervisor pipeline durability (see [src/supervisor/README.md](./src/supervisor/README.md))
 - **Vercel** — deployment platform
-

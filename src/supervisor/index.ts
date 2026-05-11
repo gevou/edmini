@@ -12,6 +12,7 @@
 export { processTurn } from "./process-turn";
 export { cancelAction } from "./cancel-action";
 export { createConsoleTransport } from "./transports/console";
+export { createServerStoreTransport } from "./transports/server-store";
 export {
   createSseTransport,
   writeSseResult,

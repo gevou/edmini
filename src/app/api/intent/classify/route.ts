@@ -2,25 +2,17 @@
  * POST /api/intent/classify
  *
  * Receives a transcript from the voice front-end (in response to a Realtime
- * `classify_and_route` tool call) and returns an SSE stream of supervisor
- * events plus a final result envelope.
+ * `classify_and_route` tool call), runs the supervisor pipeline, and returns
+ * the SupervisorResponse as JSON. Supervisor events flow OUT through the
+ * server event store (see /api/events/stream) — they are no longer streamed
+ * back on this response.
  *
- * Body shape: { transcript: string, sessionId: string, context?: object }
- *
- * Stream format (one envelope per `data:` line, JSON):
- *   { "type": "event",  "event": SupervisorEvent }
- *   { "type": "result", "result": SupervisorResponse }
- *   { "type": "error",  "error": string }
- *
- * The client (VoiceAgent.handleDataChannelMessage) reads the stream, pushes
- * each event into the EventLogPanel store, and uses the result.ack to drive
- * the Realtime model's next response via conversation.item.create.
+ * Request body: { transcript: string, sessionId: string, context?: object }
+ * Response: SupervisorResponse { ack, actionId, intent }
  */
 import {
-  createSseTransport,
+  createServerStoreTransport,
   processTurn,
-  writeSseError,
-  writeSseResult,
   type SupervisorRequest,
 } from "@/supervisor";
 
@@ -32,16 +24,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: "invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json({ error: "invalid JSON" }, { status: 400 });
   }
 
   if (!body.transcript || typeof body.transcript !== "string") {
-    return new Response(
-      JSON.stringify({ error: "transcript (string) required" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
+    return Response.json(
+      { error: "transcript (string) required" },
+      { status: 400 },
     );
   }
 
@@ -51,29 +40,18 @@ export async function POST(request: Request) {
     context: body.context,
   };
 
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const transport = createSseTransport(controller, encoder);
-      try {
-        const result = await processTurn(supervisorRequest, transport);
-        writeSseResult(controller, encoder, result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        writeSseError(controller, encoder, message);
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
-  });
+  const transport = createServerStoreTransport();
+  try {
+    const result = await processTurn(supervisorRequest, transport);
+    return Response.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Also emit the error through the transport so subscribed UIs see it.
+    transport.emit({
+      kind: "error",
+      label: "Supervisor error",
+      detail: message,
+    });
+    return Response.json({ error: message }, { status: 500 });
+  }
 }
