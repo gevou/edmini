@@ -23,16 +23,18 @@ import {
   processTurn,
   cancelAction,
   createConsoleTransport,
-  createSseTransport,
+  createServerStoreTransport,
   type SupervisorRequest,
   type SupervisorResponse,
   type SupervisorEvent,
   type SupervisorTransport,
 } from "@/supervisor";
 
-// In an API route handler that streams events back to the client:
-const transport: SupervisorTransport = createSseTransport(controller, encoder);
+// In an API route handler — events flow into the server event log, not back
+// on the response. The route returns a plain JSON SupervisorResponse.
+const transport: SupervisorTransport = createServerStoreTransport();
 const result = await processTurn(request, transport);
+return Response.json(result);
 ```
 
 ### `processTurn(request, transport): Promise<SupervisorResponse>`
@@ -53,10 +55,16 @@ cancellation primitive.
 The supervisor doesn't know or care where its events go. Pick a transport
 based on context:
 
+- **`createServerStoreTransport()`** — writes events into the server-side
+  event log (`src/lib/server-event-log.ts`). This is the **production path**
+  used by `/api/intent/classify`. Events fan out to every subscribed UI
+  through `/api/events/stream` (SSE).
 - **`createConsoleTransport()`** — colorized stdout. Used by the CLI harness
   and unit tests.
 - **`createSseTransport(controller, encoder)`** — wraps a `ReadableStream`
-  controller for SSE-style streaming. Used by `/api/intent/classify`.
+  controller for response-stream-style SSE. **No longer used in production**
+  (the route returns plain JSON now), but kept for future use cases like a
+  tee transport that also returns events on the response.
 
 You can implement custom transports easily — see the `SupervisorTransport`
 interface in `types.ts`.
@@ -76,17 +84,43 @@ for probing the workflow primitives without spinning up the voice front-end.
 
 ## Wiring (for reference)
 
+```
+voice agent ──POST──▶ /api/intent/classify ──▶ supervisor.processTurn
+                              │                          │
+                              │ JSON ack back            │ transport.emit
+                              ▼                          ▼
+                       (tool result)            server-side event store
+                                                          │
+                                                  subscribers ▼
+                                  ┌──────────────────────────────────┐
+                                  │  /api/events/stream  (SSE)       │
+                                  └──────────────────────────────────┘
+                                              ▲                ▲
+                                              │                │
+                                          dashboard       voice agent UI
+                                          (subscribes)    (subscribes)
+```
+
 - **Realtime tool config** — `src/app/api/session/route.ts` declares the
   `classify_and_route` and `cancel_pending_action` tools that the voice model
   calls.
-- **API route** — `src/app/api/intent/classify/route.ts` receives the tool
-  call from the client, runs `processTurn` with an SSE transport, streams
-  events back.
-- **Client handler** — `src/components/VoiceAgent.tsx` parses
+- **Classify route** — `src/app/api/intent/classify/route.ts` runs
+  `processTurn` with a `createServerStoreTransport()` and returns the
+  `SupervisorResponse` as plain JSON. Supervisor events are emitted into the
+  server event log, not back on the response.
+- **Event endpoints** — `src/app/api/events/stream/route.ts` is the SSE
+  fan-out (snapshot + live events); `src/app/api/events/push/route.ts` is
+  the write path used by client-side voice-loop events (`user_spoke`,
+  `model_speaking`, …).
+- **Client store** — `src/lib/event-log-store.ts` is a *mirror* of the
+  server log. `pushEvent` POSTs through the server; `useEventLog`
+  lazily opens an `EventSource` on first mount and updates the local
+  mirror on each `event`/`snapshot`/`cleared` envelope.
+- **Voice agent** — `src/components/VoiceAgent.tsx` parses
   `response.function_call_arguments.done` events from the data channel,
-  POSTs to `/api/intent/classify`, reads the SSE stream, pushes each event
-  into the EventLogPanel store, and returns the `ack` to the Realtime model
-  via `conversation.item.create` + `response.create`.
+  POSTs to `/api/intent/classify`, awaits the JSON response, and sends the
+  `ack` back to the Realtime model via `conversation.item.create` +
+  `response.create`. Events arrive via SSE alongside the dashboard's.
 
 ## Roadmap
 

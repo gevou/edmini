@@ -10,3 +10,6 @@ DerivedData/
 *.xcworkspace
 .next/
 next-env.d.ts
+
+.beads/
+.claude/worktrees/
