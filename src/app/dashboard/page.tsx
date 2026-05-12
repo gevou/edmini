@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { Thread, ThreadMessage } from "@/lib/thread-manager";
 import EventLogView from "@/components/EventLogView";
+import { clearEvents } from "@/lib/event-log-store";
 
 function FlashDot({ flashing }: { flashing?: boolean }) {
   return (
@@ -231,7 +232,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => { setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
+            onClick={() => { void fetch("/api/threads", { method: "DELETE" }); clearEvents(); setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
             className="text-xs tracking-widest uppercase transition-colors"
             style={{ color: "rgba(255,255,255,0.25)" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}

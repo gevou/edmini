@@ -129,6 +129,11 @@ export function addMessage(id: string, role: "user" | "ed", content: string): Th
   return threads[idx];
 }
 
+export function resetThreads(): void {
+  threads = SEED_THREADS.map((t) => ({ ...t }));
+  save();
+}
+
 export function getSystemPromptContext(): string {
   load();
   const lines = threads.map((t) => {

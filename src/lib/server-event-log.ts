@@ -14,9 +14,22 @@ import type { EventLogEntry, EventLogKind } from "./event-log-store";
 
 export type { EventLogEntry, EventLogKind };
 
-let entries: EventLogEntry[] = [];
-const subscribers = new Set<(entry: EventLogEntry) => void>();
-const clearSubscribers = new Set<() => void>();
+type EventLogState = {
+  entries: EventLogEntry[];
+  subscribers: Set<(entry: EventLogEntry) => void>;
+  clearSubscribers: Set<() => void>;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __supervisorEventLog: EventLogState | undefined;
+}
+
+const state: EventLogState = (globalThis.__supervisorEventLog ??= {
+  entries: [],
+  subscribers: new Set(),
+  clearSubscribers: new Set(),
+});
 
 function generateId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -37,10 +50,8 @@ export function pushServerEvent(
     id: generateId(),
     timestamp: Date.now(),
   };
-  entries = [...entries, stored];
-  // Fan out — guard each subscriber so one buggy listener can't take down the
-  // rest of the fan-out. The SSE route catches its own errors anyway.
-  for (const fn of subscribers) {
+  state.entries = [...state.entries, stored];
+  for (const fn of state.subscribers) {
     try {
       fn(stored);
     } catch {
@@ -55,7 +66,7 @@ export function pushServerEvent(
  * one-shot snapshot envelope to new subscribers so they catch up on history.
  */
 export function getServerEntriesSnapshot(): readonly EventLogEntry[] {
-  return entries;
+  return state.entries;
 }
 
 /**
@@ -68,9 +79,9 @@ export function getServerEntriesSnapshot(): readonly EventLogEntry[] {
 export function subscribeServer(
   callback: (entry: EventLogEntry) => void,
 ): () => void {
-  subscribers.add(callback);
+  state.subscribers.add(callback);
   return () => {
-    subscribers.delete(callback);
+    state.subscribers.delete(callback);
   };
 }
 
@@ -80,9 +91,9 @@ export function subscribeServer(
  * can drop their local mirrors in sync.
  */
 export function subscribeServerClear(callback: () => void): () => void {
-  clearSubscribers.add(callback);
+  state.clearSubscribers.add(callback);
   return () => {
-    clearSubscribers.delete(callback);
+    state.clearSubscribers.delete(callback);
   };
 }
 
@@ -91,8 +102,8 @@ export function subscribeServerClear(callback: () => void): () => void {
  * this to fan out a "cleared" envelope to all connected clients).
  */
 export function clearServerEvents(): void {
-  entries = [];
-  for (const fn of clearSubscribers) {
+  state.entries = [];
+  for (const fn of state.clearSubscribers) {
     try {
       fn();
     } catch {
