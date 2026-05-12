@@ -29,4 +29,5 @@ export type {
   RouteDecision,
   RephrasedResult,
   CancelRequest,
+  ExecuteActionInput,
 } from "./types";

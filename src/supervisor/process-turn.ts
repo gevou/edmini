@@ -13,6 +13,7 @@
  * The contract (SupervisorRequest in, events out, SupervisorResponse returned)
  * stays the same. Callers of this function won't change.
  */
+import { callRephrase } from "./llm";
 import type {
   RephrasedResult,
   SupervisorRequest,
@@ -99,15 +100,5 @@ export async function processTurn(
 
 export async function rephrase(transcript: string): Promise<RephrasedResult> {
   'use step';
-  const text: string = transcript.trim().toUpperCase();
-  const threadIds: Array<string> = [];
-  const confidence: number = 0;
-
-  await sleep(2000);
-
-  return {
-    text,
-    threadIds,
-    confidence
-  }
+  return callRephrase(transcript);
 }

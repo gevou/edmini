@@ -12,6 +12,9 @@
  *
  * Run with: tsx src/supervisor/cli/test.ts <transcript> [options]
  */
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
 import {
   cancelAction,
   createConsoleTransport,
