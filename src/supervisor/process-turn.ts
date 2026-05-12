@@ -14,6 +14,7 @@
  * stays the same. Callers of this function won't change.
  */
 import type {
+  RephrasedResult,
   SupervisorRequest,
   SupervisorResponse,
   SupervisorTransport,
@@ -27,14 +28,17 @@ export async function processTurn(
   req: SupervisorRequest,
   transport: SupervisorTransport,
 ): Promise<SupervisorResponse> {
+  'use workflow';
   const startedAt = Date.now();
   const transcriptPreview = req.transcript.slice(0, 80);
 
   // Step 1 — rephrase voice → structured intent description (noop)
+  const rephrased = await rephrase(transcriptPreview);
   transport.emit({
     kind: "rephrased",
-    label: "Rephrased (noop)",
+    label: "Rephrased",
     detail: transcriptPreview,
+    payload: {...rephrased}
   });
   await sleep(180);
 
@@ -91,4 +95,19 @@ export async function processTurn(
       ack: `Noop supervisor: I heard "${transcriptPreview}". Real handler not wired yet.`,
     },
   };
+}
+
+export async function rephrase(transcript: string): Promise<RephrasedResult> {
+  'use step';
+  const text: string = transcript.trim().toUpperCase();
+  const threadIds: Array<string> = [];
+  const confidence: number = 0;
+
+  await sleep(2000);
+
+  return {
+    text,
+    threadIds,
+    confidence
+  }
 }
