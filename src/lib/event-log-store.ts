@@ -245,8 +245,13 @@ export function pushTestSequence(): void {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Polling bootstrap — replaces SSE for reliability in dev + serverless       */
+/* SSE bootstrap — single shared EventSource per tab                           */
 /* -------------------------------------------------------------------------- */
+
+type StreamEnvelope =
+  | { type: "snapshot"; entries: EventLogEntry[] }
+  | { type: "event"; entry: EventLogEntry }
+  | { type: "cleared" };
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -269,8 +274,7 @@ async function pollEvents() {
 }
 
 /**
- * Start polling the server event log every second.
- * Replaces the old SSE approach which was fragile under HMR and serverless.
+ * Start polling the server event log. Simple and reliable.
  */
 export function bootstrapEventStream(): void {
   if (typeof window === "undefined") return;
