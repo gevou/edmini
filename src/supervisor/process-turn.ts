@@ -13,7 +13,7 @@
  * is stable across the noop → real-implementation transition. Callers of this
  * function won't change.
  */
-import { callRephrase } from "./llm";
+import { callDecideAndExecute, callRephrase, DecideResult } from "./llm";
 import type {
   RephrasedResult,
   SupervisorRequest,
@@ -37,6 +37,8 @@ export async function processTurn(
     payload: { ...rephrased },
   });
 
+  void decideAndExecute(rephrased);
+
   return {
     ack: rephrased.ack,
     actionId: "",
@@ -51,4 +53,9 @@ export async function processTurn(
 export async function rephrase(transcript: string): Promise<RephrasedResult> {
   "use step";
   return callRephrase(transcript);
+}
+
+export async function decideAndExecute(rephrased: RephrasedResult): Promise<DecideResult> {
+  "use step";
+  return callDecideAndExecute(rephrased);
 }

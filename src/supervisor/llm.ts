@@ -1,7 +1,10 @@
-import { CAPABILITIES } from "./capabilities";
-import type { RephrasedResult, RouteDecision } from "./types";
-import { getThreads } from "@/lib/thread-manager";
+
 import type { RephrasedResult } from "./types";
+import { getThreads } from "@/lib/thread-manager";
+
+/* -------------------------------------------------------------------------- */
+/* Step 1 — Rephrase                                                          */
+/* -------------------------------------------------------------------------- */
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -82,5 +85,88 @@ Given a raw voice transcript, produce structured JSON:
     ack: parsed.ack,
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Step 2 — Decide and execute via tool calling                               */
+/* -------------------------------------------------------------------------- */
+
+const DECIDE_PROMPT = `You are Ed, a personal assistant. Given a user intent, either call one of your available tools or respond that you cannot help. Be concise.`;
+
+const TOOL_DEFS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "web_search",
+      description: "Search the web for information.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "send_message",
+      description: "Compose and send a message via Telegram.",
+      parameters: {
+        type: "object",
+        properties: {
+          recipient: { type: "string", description: "Who to send to" },
+          body: { type: "string", description: "The message content" },
+        },
+        required: ["body"],
+      },
+    },
+  },
+];
+
+export interface DecideResult {
+  capability: string | null;
+  params: Record<string, unknown>;
+  fallbackText: string | null;
+}
+
+export async function callDecideAndExecute(
+  rephrased: RephrasedResult,
+): Promise<DecideResult> {
+  const res = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: openaiHeaders(),
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 100,
+      tools: TOOL_DEFS,
+      tool_choice: "auto",
+      messages: [
+        { role: "system", content: DECIDE_PROMPT },
+        { role: "user", content: rephrased.text },
+      ],
+    }),
+  });
+
+  const json = await res.json();
+  const choice = json.choices[0];
+
+  if (choice.finish_reason === "tool_calls" && choice.message.tool_calls?.length > 0) {
+    const call = choice.message.tool_calls[0];
+    const params = JSON.parse(call.function.arguments) as Record<string, unknown>;
+    console.log(call.function.name);
+    console.log(params);
+    return {
+      capability: call.function.name,
+      params,
+      fallbackText: null,
+    };
+  }
+
+  return {
+    capability: null,
+    params: {},
+    fallbackText: choice.message.content ?? "I'm not sure how to help with that.",
   };
 }
