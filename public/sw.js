@@ -27,7 +27,10 @@ self.addEventListener('fetch', (e) => {
     caches.match(e.request).then((cached) => {
       const fresh = fetch(e.request).then((res) => {
         if (res.ok && (url.pathname === '/' || url.pathname.startsWith('/_next/'))) {
-          caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
+          // Clone synchronously BEFORE the response is consumed downstream;
+          // otherwise the cache.put() race fails with "Response body is already used".
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
         }
         return res;
       });
