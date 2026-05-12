@@ -33,7 +33,7 @@ export async function processTurn(req: SupervisorRequest, transport: SupervisorT
 
   const actionId = `act_${++actionCounter}_${Date.now()}`;
 
-  void decideAndExecute(rephrased, actionId, transport);
+  await decideAndExecute(rephrased, actionId, transport);
 
   return {
     ack: rephrased.ack,
@@ -70,9 +70,8 @@ export async function decideAndExecute(
   try {
     if (decision.capability === "web_search") {
       const results = await tavilySearch(decision.params.query as string);
-      const summary = results
-        .map((r, i) => `${i + 1}. ${r.title} — ${r.content.slice(0, 120)}`)
-        .join("\n");
+      console.log("[decideAndExecute] tavilySearch returned", results.length, "results");
+      const summary = results.map((r, i) => `${i + 1}. ${r.title} — ${r.content.slice(0, 120)}`).join("\n");
       transport.emit({
         kind: "completed",
         label: "Search complete",
