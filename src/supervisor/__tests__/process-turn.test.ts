@@ -39,33 +39,35 @@ describe("processTurn (noop)", () => {
     ]);
   });
 
-  it("returns an ack that quotes the transcript", async () => {
+  it("returns a non-empty ack from the rephrase step", async () => {
     const { transport } = createRecordingTransport();
     const result = await processTurn(
       { transcript: "schedule team standup", sessionId: "s1" },
       transport,
     );
-    expect(result.ack).toContain("schedule team standup");
+    expect(result.ack).toBeTruthy();
+    expect(typeof result.ack).toBe("string");
   });
 
-  it("returns decision.kind === 'casual' for noop", async () => {
+  it("returns decision.kind === 'casual' with rephrase fields", async () => {
     const { transport } = createRecordingTransport();
     const result = await processTurn(
       { transcript: "anything", sessionId: "s1" },
       transport,
     );
     expect(result.decision.kind).toBe("casual");
-    expect(result.decision.rephrase.confidence).toBe(1.0);
+    expect(result.decision.rephrase.text).toBeTruthy();
+    expect(result.decision.rephrase.confidence).toBeGreaterThan(0);
+    expect(result.decision.rephrase.ack).toBeTruthy();
   });
 
-  it("includes the transcript in decision.rephrase.text", async () => {
+  it("returns rephrase with threadIds array", async () => {
     const { transport } = createRecordingTransport();
     const result = await processTurn(
       { transcript: "x", sessionId: "session-42" },
       transport,
     );
-    expect(result.decision.rephrase.text).toBe("x");
-    expect(result.decision.rephrase.threadIds).toEqual([]);
+    expect(Array.isArray(result.decision.rephrase.threadIds)).toBe(true);
   });
 
   it("returns an actionId namespaced with 'act_noop_'", async () => {

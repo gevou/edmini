@@ -1,3 +1,5 @@
+import { CAPABILITIES } from "./capabilities";
+import type { RephrasedResult, RouteDecision } from "./types";
 import { getThreads } from "@/lib/thread-manager";
 import type { RephrasedResult } from "./types";
 
@@ -24,8 +26,9 @@ const REPHRASE_SCHEMA = {
     properties: {
       text: { type: "string", description: "Cleaned-up intent statement" },
       confidence: { type: "number", description: "0-1 confidence score" },
+      ack: { type: "string", description: "Brief verbal confirmation for the user (1 sentence, spoken aloud by Ed)" },
     },
-    required: ["text", "confidence"],
+    required: ["text", "confidence", "ack"],
     additionalProperties: false,
   },
 } as const;
@@ -44,7 +47,12 @@ Given a raw voice transcript, produce structured JSON:
 **confidence**: How confident you are in your interpretation (0-1).
 - 1.0: unambiguous, single clear meaning.
 - 0.7-0.9: likely correct but some ambiguity.
-- Below 0.5: genuinely unclear what the user wants.`;
+- Below 0.5: genuinely unclear what the user wants.
+
+**ack**: A brief, natural verbal confirmation Ed will speak aloud (1 sentence).
+- Mirror back the intent so the user knows they were understood.
+- Examples: "Searching for TDS submission guidelines.", "I'll send that message.", "Checking on the hackathon status."
+- Keep it short — this is spoken while processing continues in the background.`;
 
   const res = await fetch(OPENAI_URL, {
     method: "POST",
@@ -62,10 +70,17 @@ Given a raw voice transcript, produce structured JSON:
   });
 
   const json = await res.json();
-  const parsed = JSON.parse(json.choices[0].message.content) as { text: string; confidence: number };
+  const parsed = JSON.parse(json.choices[0].message.content) as {
+    text: string;
+    confidence: number;
+    ack: string;
+  };
   return {
     text: parsed.text,
     threadIds: [],
     confidence: parsed.confidence,
+    ack: parsed.ack,
+  };
+}
   };
 }

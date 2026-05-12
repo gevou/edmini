@@ -14,6 +14,8 @@ export interface RephrasedResult {
   text: string;
   threadIds: string[];
   confidence: number;
+  /** Brief verbal confirmation Ed speaks while routing continues in the background. */
+  ack: string;
 }
 
 export type RouteDecision =
@@ -28,13 +30,6 @@ export type RouteDecision =
       params: Record<string, unknown>;
     };
 
-export interface Capability {
-  id: string;
-  description: string;
-  keywords: string[];
-  requiresConfirmation: boolean;
-}
-
 export interface ExecuteActionInput {
   actionId: string;
   sessionId: string;
@@ -44,21 +39,6 @@ export interface ExecuteActionInput {
   threadIds: string[];
   requiresConfirmation: boolean;
 }
-
-export const CAPABILITIES: Capability[] = [
-  {
-    id: "web.search",
-    description: "Search the web for information.",
-    keywords: ["search", "look up", "find", "google", "what is", "who is"],
-    requiresConfirmation: false,
-  },
-  {
-    id: "message.send",
-    description: "Compose and send a message via Telegram.",
-    keywords: ["send", "message", "tell", "notify", "ping", "let them know"],
-    requiresConfirmation: true,
-  },
-];
 
 /* -------------------------------------------------------------------------- */
 /* Request / Response                                                          */
