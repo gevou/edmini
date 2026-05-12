@@ -246,7 +246,16 @@ export default function VoiceAgent() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) setApiKey(stored);
+    if (stored) {
+      setApiKey(stored);
+      return;
+    }
+    fetch("/api/session")
+      .then((r) => r.json())
+      .then((data: { hasServerKey?: boolean }) => {
+        if (data.hasServerKey) setApiKey("__server__");
+      })
+      .catch(() => {});
   }, []);
 
   const saveKey = useCallback((key: string) => {
@@ -274,7 +283,7 @@ export default function VoiceAgent() {
   const postTurnToThread = useCallback(async (userText: string, edText: string) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (apiKey) headers["x-openai-key"] = apiKey;
+      if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
       const res = await fetch("/api/threads/classify", {
         method: "POST",
@@ -444,7 +453,7 @@ export default function VoiceAgent() {
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (apiKey) headers["x-openai-key"] = apiKey;
+      if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
       const sessionRes = await fetch("/api/session", { method: "POST", headers });
       if (!sessionRes.ok) {
@@ -578,14 +587,14 @@ export default function VoiceAgent() {
             voice agent
           </p>
         </div>
-        <button
+        {apiKey !== "__server__" && <button
           onClick={clearKey}
           title="Change API key"
           className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
           style={{ minHeight: 36, padding: "0 4px" }}
         >
           key
-        </button>
+        </button>}
       </header>
 
       {/* Scrollable transcript — only this area scrolls */}

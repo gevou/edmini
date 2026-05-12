@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSystemPromptContext } from "@/lib/thread-manager";
 
+export async function GET() {
+  const hasKey = Boolean(process.env.OPENAI_API_KEY);
+  return NextResponse.json({ hasServerKey: hasKey });
+}
+
 export async function POST(request: Request) {
   const apiKey = request.headers.get("x-openai-key") ?? process.env.OPENAI_API_KEY;
   if (!apiKey) {
