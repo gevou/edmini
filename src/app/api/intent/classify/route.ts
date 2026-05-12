@@ -1,23 +1,15 @@
-/**
- * POST /api/intent/classify
- *
- * Receives a transcript from the voice front-end (in response to a Realtime
- * `classify_and_route` tool call), runs the supervisor pipeline, and returns
- * the SupervisorResponse as JSON. Supervisor events flow OUT through the
- * server event store (see /api/events/stream) — they are no longer streamed
- * back on this response.
- *
- * Request body: { transcript: string, sessionId: string, context?: object }
- * Response: SupervisorResponse { ack, actionId, intent }
- */
+import { start } from "workflow/api";
 import {
   createServerStoreTransport,
-  processTurn,
+  rephrase,
+  processAction,
   type SupervisorRequest,
 } from "@/supervisor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+let actionCounter = 0;
 
 export async function POST(request: Request) {
   let body: Partial<SupervisorRequest>;
@@ -34,20 +26,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const supervisorRequest: SupervisorRequest = {
-    transcript: body.transcript,
-    sessionId: body.sessionId ?? "anonymous",
-    context: body.context,
-  };
+  const transcriptPreview = body.transcript.slice(0, 80);
 
-  const transport = createServerStoreTransport();
   try {
-    const result = await processTurn(supervisorRequest, transport);
-    return Response.json(result);
+    const rephrased = await rephrase(transcriptPreview);
+
+    const transport = createServerStoreTransport();
+    transport.emit({
+      kind: "rephrased",
+      label: "Rephrased",
+      detail: rephrased.text,
+      payload: { ...rephrased },
+    });
+
+    const actionId = `act_${++actionCounter}_${Date.now()}`;
+
+    await start(processAction, [rephrased, actionId]);
+
+    return Response.json({
+      ack: rephrased.ack,
+      actionId,
+      decision: {
+        kind: "casual" as const,
+        rephrase: rephrased,
+        ack: rephrased.ack,
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // Also emit the error through the transport so subscribed UIs see it.
-    transport.emit({
+    createServerStoreTransport().emit({
       kind: "error",
       label: "Supervisor error",
       detail: message,

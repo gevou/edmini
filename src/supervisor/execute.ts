@@ -8,6 +8,7 @@ interface TavilyResult {
 }
 
 export async function tavilySearch(query: string): Promise<TavilyResult[]> {
+  "use step";
   const res = await fetch(TAVILY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -28,8 +29,12 @@ export async function tavilySearch(query: string): Promise<TavilyResult[]> {
 }
 
 export async function sendTelegram(message: string): Promise<void> {
+  "use step";
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) {
+    throw new Error("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set");
+  }
   const res = await fetch(`${TELEGRAM_URL}/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
