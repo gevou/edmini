@@ -13,28 +13,31 @@
  * is stable across the noop → real-implementation transition. Callers of this
  * function won't change.
  */
-import { callDecideAndExecute, callRephrase, DecideResult } from "./llm";
+import { callDecideAndExecute, callRephrase, type DecideResult } from "./llm";
 import { tavilySearch } from "./execute";
 import type { RephrasedResult, SupervisorRequest, SupervisorResponse, SupervisorTransport } from "./types";
+
+let actionCounter = 0;
 
 export async function processTurn(req: SupervisorRequest, transport: SupervisorTransport): Promise<SupervisorResponse> {
   "use workflow";
   const transcriptPreview = req.transcript.slice(0, 80);
 
-  // Step 1 — rephrase: voice transcript → structured intent description.
   const rephrased = await rephrase(transcriptPreview);
   transport.emit({
     kind: "rephrased",
     label: "Rephrased",
-    detail: transcriptPreview,
+    detail: rephrased.text,
     payload: { ...rephrased },
   });
 
-  void decideAndExecute(rephrased);
+  const actionId = `act_${++actionCounter}_${Date.now()}`;
+
+  void decideAndExecute(rephrased, actionId, transport);
 
   return {
     ack: rephrased.ack,
-    actionId: "",
+    actionId,
     decision: {
       kind: "casual" as const,
       rephrase: rephrased,
@@ -48,14 +51,43 @@ export async function rephrase(transcript: string): Promise<RephrasedResult> {
   return callRephrase(transcript);
 }
 
-export async function decideAndExecute(rephrased: RephrasedResult): Promise<DecideResult> {
+export async function decideAndExecute(
+  rephrased: RephrasedResult,
+  actionId: string,
+  transport: SupervisorTransport,
+): Promise<DecideResult> {
   "use step";
   const decision = await callDecideAndExecute(rephrased);
 
-  if (decision.capability === "web_search") {
-    const results = await tavilySearch(decision.params.query as string);
-    decision.params.results = results;
+  if (!decision.capability) return decision;
+
+  transport.emit({
+    kind: "dispatched",
+    label: `Executing: ${decision.capability}`,
+    payload: { actionId, capability: decision.capability, params: decision.params },
+  });
+
+  try {
+    if (decision.capability === "web_search") {
+      const results = await tavilySearch(decision.params.query as string);
+      const summary = results
+        .map((r, i) => `${i + 1}. ${r.title} — ${r.content.slice(0, 120)}`)
+        .join("\n");
+      transport.emit({
+        kind: "completed",
+        label: "Search complete",
+        detail: summary.slice(0, 300),
+        payload: {
+          actionId,
+          capability: "web_search",
+          summary: `I found ${results.length} results for "${decision.params.query}": ${results.map((r) => r.title).join(", ")}.`,
+        },
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    transport.emit({ kind: "failed", label: "Action failed", detail: msg, payload: { actionId } });
   }
-  console.log(decision.params.results);
+
   return decision;
 }
