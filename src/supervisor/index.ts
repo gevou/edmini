@@ -26,6 +26,7 @@ export type {
   SupervisorEvent,
   SupervisorEventKind,
   SupervisorTransport,
-  ClassifiedIntent,
+  RouteDecision,
+  RephrasedResult,
   CancelRequest,
 } from "./types";

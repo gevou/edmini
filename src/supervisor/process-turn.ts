@@ -76,13 +76,19 @@ export async function processTurn(
     },
   });
 
+  const noopRephrase = {
+    text: transcriptPreview,
+    threadIds: [],
+    confidence: 1.0,
+  };
+
   return {
     ack: `Noop supervisor: I heard "${transcriptPreview}". Real handler not wired yet.`,
     actionId,
-    intent: {
-      type: "noop",
-      confidence: 1.0,
-      params: { transcript: req.transcript, sessionId: req.sessionId },
+    decision: {
+      kind: "casual" as const,
+      rephrase: noopRephrase,
+      ack: `Noop supervisor: I heard "${transcriptPreview}". Real handler not wired yet.`,
     },
   };
 }

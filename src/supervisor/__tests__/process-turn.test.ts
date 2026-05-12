@@ -48,26 +48,24 @@ describe("processTurn (noop)", () => {
     expect(result.ack).toContain("schedule team standup");
   });
 
-  it("returns intent.type === 'noop' with full confidence", async () => {
+  it("returns decision.kind === 'casual' for noop", async () => {
     const { transport } = createRecordingTransport();
     const result = await processTurn(
       { transcript: "anything", sessionId: "s1" },
       transport,
     );
-    expect(result.intent.type).toBe("noop");
-    expect(result.intent.confidence).toBe(1.0);
+    expect(result.decision.kind).toBe("casual");
+    expect(result.decision.rephrase.confidence).toBe(1.0);
   });
 
-  it("forwards transcript and sessionId into intent.params", async () => {
+  it("includes the transcript in decision.rephrase.text", async () => {
     const { transport } = createRecordingTransport();
     const result = await processTurn(
       { transcript: "x", sessionId: "session-42" },
       transport,
     );
-    expect(result.intent.params).toMatchObject({
-      transcript: "x",
-      sessionId: "session-42",
-    });
+    expect(result.decision.rephrase.text).toBe("x");
+    expect(result.decision.rephrase.threadIds).toEqual([]);
   });
 
   it("returns an actionId namespaced with 'act_noop_'", async () => {

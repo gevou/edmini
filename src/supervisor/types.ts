@@ -10,6 +10,56 @@
 
 import type { EventLogKind } from "@/lib/event-log-store";
 
+export interface RephrasedResult {
+  text: string;
+  threadIds: string[];
+  confidence: number;
+}
+
+export type RouteDecision =
+  | { kind: "casual"; rephrase: RephrasedResult; ack: string }
+  | { kind: "clarification_needed"; rephrase: RephrasedResult; question: string }
+  | {
+      kind: "action";
+      rephrase: RephrasedResult;
+      ack: string;
+      capability: string;
+      confidence: number;
+      params: Record<string, unknown>;
+    };
+
+export interface Capability {
+  id: string;
+  description: string;
+  keywords: string[];
+  requiresConfirmation: boolean;
+}
+
+export interface ExecuteActionInput {
+  actionId: string;
+  sessionId: string;
+  capability: string;
+  params: Record<string, unknown>;
+  rephrase: string;
+  threadIds: string[];
+  requiresConfirmation: boolean;
+}
+
+export const CAPABILITIES: Capability[] = [
+  {
+    id: "web.search",
+    description: "Search the web for information.",
+    keywords: ["search", "look up", "find", "google", "what is", "who is"],
+    requiresConfirmation: false,
+  },
+  {
+    id: "message.send",
+    description: "Compose and send a message via Telegram.",
+    keywords: ["send", "message", "tell", "notify", "ping", "let them know"],
+    requiresConfirmation: true,
+  },
+];
+
 /* -------------------------------------------------------------------------- */
 /* Request / Response                                                          */
 /* -------------------------------------------------------------------------- */
@@ -36,22 +86,13 @@ export interface SupervisorRequest {
   context?: ConversationContext;
 }
 
-export interface ClassifiedIntent {
-  /** Intent type string, e.g. "schedule_event" / "send_message" / "noop". */
-  type: string;
-  /** Confidence in [0, 1]. */
-  confidence: number;
-  /** Structured parameters extracted from the utterance. */
-  params: Record<string, unknown>;
-}
-
 export interface SupervisorResponse {
   /** Verbal acknowledgment the voice model should say while the action runs. */
   ack: string;
   /** Handle for cancellation. Pass to cancelAction() to abort an in-flight action. */
   actionId?: string;
   /** What the supervisor decided the user wants. */
-  intent: ClassifiedIntent;
+  decision: RouteDecision;
 }
 
 /* -------------------------------------------------------------------------- */
