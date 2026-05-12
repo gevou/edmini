@@ -14,7 +14,7 @@
  * function won't change.
  */
 import { callDecideAndExecute, callRephrase, type DecideResult } from "./llm";
-import { tavilySearch } from "./execute";
+import { tavilySearch, sendTelegram } from "./execute";
 import type { RephrasedResult, SupervisorRequest, SupervisorResponse, SupervisorTransport } from "./types";
 
 let actionCounter = 0;
@@ -80,6 +80,20 @@ export async function decideAndExecute(
           actionId,
           capability: "web_search",
           summary: `I found ${results.length} results for "${decision.params.query}": ${results.map((r) => r.title).join(", ")}.`,
+        },
+      });
+    } else if (decision.capability === "send_message") {
+      const body = String(decision.params.body ?? "");
+      await sendTelegram(body);
+      console.log("[decideAndExecute] sendTelegram delivered", body.length, "chars");
+      transport.emit({
+        kind: "completed",
+        label: "Telegram sent",
+        detail: body.slice(0, 200),
+        payload: {
+          actionId,
+          capability: "send_message",
+          summary: `Sent on Telegram: ${body}`,
         },
       });
     }

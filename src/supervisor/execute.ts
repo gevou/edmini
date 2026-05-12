@@ -1,4 +1,5 @@
 const TAVILY_URL = "https://api.tavily.com/search";
+const TELEGRAM_URL = "https://api.telegram.org";
 
 interface TavilyResult {
   title: string;
@@ -24,4 +25,18 @@ export async function tavilySearch(query: string): Promise<TavilyResult[]> {
 
   const data = (await res.json()) as { results: TavilyResult[] };
   return data.results;
+}
+
+export async function sendTelegram(message: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const res = await fetch(`${TELEGRAM_URL}/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: message }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Telegram send failed: ${res.status} ${detail}`);
+  }
 }
