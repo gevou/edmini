@@ -14,17 +14,10 @@
  * function won't change.
  */
 import { callDecideAndExecute, callRephrase, DecideResult } from "./llm";
-import type {
-  RephrasedResult,
-  SupervisorRequest,
-  SupervisorResponse,
-  SupervisorTransport,
-} from "./types";
+import { tavilySearch } from "./execute";
+import type { RephrasedResult, SupervisorRequest, SupervisorResponse, SupervisorTransport } from "./types";
 
-export async function processTurn(
-  req: SupervisorRequest,
-  transport: SupervisorTransport,
-): Promise<SupervisorResponse> {
+export async function processTurn(req: SupervisorRequest, transport: SupervisorTransport): Promise<SupervisorResponse> {
   "use workflow";
   const transcriptPreview = req.transcript.slice(0, 80);
 
@@ -57,5 +50,12 @@ export async function rephrase(transcript: string): Promise<RephrasedResult> {
 
 export async function decideAndExecute(rephrased: RephrasedResult): Promise<DecideResult> {
   "use step";
-  return callDecideAndExecute(rephrased);
+  const decision = await callDecideAndExecute(rephrased);
+
+  if (decision.capability === "web_search") {
+    const results = await tavilySearch(decision.params.query as string);
+    decision.params.results = results;
+  }
+  console.log(decision.params.results);
+  return decision;
 }
