@@ -245,65 +245,38 @@ export function pushTestSequence(): void {
 }
 
 /* -------------------------------------------------------------------------- */
-/* SSE bootstrap — single shared EventSource per tab                           */
+/* Polling bootstrap — replaces SSE for reliability in dev + serverless       */
 /* -------------------------------------------------------------------------- */
 
-type StreamEnvelope =
-  | { type: "snapshot"; entries: EventLogEntry[] }
-  | { type: "event"; entry: EventLogEntry }
-  | { type: "cleared" };
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-let bootstrapped = false;
-let activeSource: EventSource | null = null;
+async function pollEvents() {
+  try {
+    const res = await fetch("/api/events/poll");
+    if (!res.ok) return;
+    const data = (await res.json()) as { entries: EventLogEntry[] };
+    if (!data.entries) return;
+    const newEntries = data.entries.filter((e) => !seenIds.has(e.id));
+    if (newEntries.length === 0) return;
+    for (const entry of newEntries) {
+      seenIds.add(entry.id);
+    }
+    entries = data.entries;
+    notify();
+  } catch {
+    // network error — try again next interval
+  }
+}
 
 /**
- * Open (or no-op if already open) the SSE connection to the server event
- * log. Idempotent — safe to call from every component on every render.
- *
- * Server-only callers (SSR, tests) get a no-op.
+ * Start polling the server event log every second.
+ * Replaces the old SSE approach which was fragile under HMR and serverless.
  */
 export function bootstrapEventStream(): void {
-  if (bootstrapped) return;
   if (typeof window === "undefined") return;
-  if (typeof EventSource === "undefined") return;
-  bootstrapped = true;
-
-  const open = () => {
-    const source = new EventSource("/api/events/stream");
-    activeSource = source;
-
-    source.onmessage = (e) => {
-      let envelope: StreamEnvelope;
-      try {
-        envelope = JSON.parse(e.data as string) as StreamEnvelope;
-      } catch {
-        return;
-      }
-      if (envelope.type === "snapshot") {
-        // Snapshot replaces the mirror entirely (server is authoritative).
-        // Reset seenIds + entries first so subsequent mirrorEntry calls in
-        // this batch are not deduped against a stale set.
-        seenIds.clear();
-        entries = [];
-        for (const entry of envelope.entries) {
-          seenIds.add(entry.id);
-        }
-        entries = [...envelope.entries];
-        notify();
-      } else if (envelope.type === "event") {
-        mirrorEntry(envelope.entry);
-      } else if (envelope.type === "cleared") {
-        mirrorClear();
-      }
-    };
-
-    source.onerror = () => {
-      // EventSource auto-reconnects with exponential backoff. We just leave
-      // it be; if the user closes the tab the GC will clean up.
-    };
-  };
-
-  open();
+  if (pollTimer) return;
+  pollEvents();
+  pollTimer = setInterval(pollEvents, 1_000);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -337,7 +310,5 @@ export function _unsafeForTestReset(): void {
   entries = [];
   seenIds.clear();
   notify();
-  bootstrapped = false;
-  activeSource?.close();
-  activeSource = null;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
