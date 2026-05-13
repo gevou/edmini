@@ -10,6 +10,36 @@
 
 import type { EventLogKind } from "@/lib/event-log-store";
 
+export interface RephrasedResult {
+  text: string;
+  threadIds: string[];
+  confidence: number;
+  /** Brief verbal confirmation Ed speaks while routing continues in the background. */
+  ack: string;
+}
+
+export type RouteDecision =
+  | { kind: "casual"; rephrase: RephrasedResult; ack: string }
+  | { kind: "clarification_needed"; rephrase: RephrasedResult; question: string }
+  | {
+      kind: "action";
+      rephrase: RephrasedResult;
+      ack: string;
+      capability: string;
+      confidence: number;
+      params: Record<string, unknown>;
+    };
+
+export interface ExecuteActionInput {
+  actionId: string;
+  sessionId: string;
+  capability: string;
+  params: Record<string, unknown>;
+  rephrase: string;
+  threadIds: string[];
+  requiresConfirmation: boolean;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Request / Response                                                          */
 /* -------------------------------------------------------------------------- */
@@ -36,22 +66,13 @@ export interface SupervisorRequest {
   context?: ConversationContext;
 }
 
-export interface ClassifiedIntent {
-  /** Intent type string, e.g. "schedule_event" / "send_message" / "noop". */
-  type: string;
-  /** Confidence in [0, 1]. */
-  confidence: number;
-  /** Structured parameters extracted from the utterance. */
-  params: Record<string, unknown>;
-}
-
 export interface SupervisorResponse {
   /** Verbal acknowledgment the voice model should say while the action runs. */
   ack: string;
   /** Handle for cancellation. Pass to cancelAction() to abort an in-flight action. */
   actionId?: string;
   /** What the supervisor decided the user wants. */
-  intent: ClassifiedIntent;
+  decision: RouteDecision;
 }
 
 /* -------------------------------------------------------------------------- */
