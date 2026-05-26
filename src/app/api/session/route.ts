@@ -99,27 +99,37 @@ If you don't remember the most recent actionId, just acknowledge the cancellatio
     },
   ];
 
-  const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
+  const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o-realtime-preview-2024-12-17",
-      voice: "alloy",
-      modalities: ["audio", "text"],
-      instructions,
-      tools,
-      tool_choice: "auto",
-      turn_detection: {
-        type: "server_vad",
-        threshold: 0.5,
-        prefix_padding_ms: 300,
-        silence_duration_ms: 800,
-      },
-      input_audio_transcription: {
-        model: "whisper-1",
+      expires_after: { anchor: "created_at", seconds: 600 },
+      session: {
+        type: "realtime",
+        model: "gpt-realtime",
+        instructions,
+        output_modalities: ["audio"],
+        audio: {
+          input: {
+            format: "pcm16",
+            transcription: { model: "whisper-1" },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 800,
+            },
+          },
+          output: {
+            format: "pcm16",
+            voice: "alloy",
+          },
+        },
+        tools,
+        tool_choice: "auto",
       },
     }),
   });
