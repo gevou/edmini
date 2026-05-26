@@ -331,7 +331,7 @@ export default function VoiceAgent() {
     if (type === "input_audio_buffer.speech_stopped") {
       pushEvent({ kind: "user_paused", label: "User paused" });
     }
-    if (type === "response.audio.delta") {
+    if (type === "response.output_audio.delta") {
       setStatus("speaking");
       if (!modelSpeakingFlagRef.current) {
         modelSpeakingFlagRef.current = true;
@@ -359,7 +359,7 @@ export default function VoiceAgent() {
     }
 
     // Ed streaming — create or append to current turn
-    if (type === "response.audio_transcript.delta" || type === "response.text.delta") {
+    if (type === "response.output_audio_transcript.delta" || type === "response.output_text.delta") {
       const delta = serverEvent.delta as string;
       if (delta) {
         if (currentTurnIdRef.current !== null) {
@@ -381,7 +381,7 @@ export default function VoiceAgent() {
     }
 
     // Ed transcript finalized
-    if (type === "response.audio_transcript.done" || type === "response.text.done") {
+    if (type === "response.output_audio_transcript.done" || type === "response.output_text.done") {
       const transcript = serverEvent.transcript as string | undefined;
       const activeId = currentTurnIdRef.current;
       currentTurnIdRef.current = null;
@@ -394,7 +394,7 @@ export default function VoiceAgent() {
           )
         );
       }
-      if (type === "response.audio_transcript.done" && transcript) {
+      if (type === "response.output_audio_transcript.done" && transcript) {
         const userText = pendingUserTextRef.current;
         if (userText) {
           pendingUserTextRef.current = null;
@@ -461,7 +461,10 @@ export default function VoiceAgent() {
         throw new Error(err.error ?? "Failed to create session");
       }
       const sessionData = await sessionRes.json();
-      const ephemeralKey: string = sessionData.client_secret?.value ?? sessionData.client_secret;
+      const ephemeralKey: string =
+        sessionData.value ??
+        sessionData.client_secret?.value ??
+        sessionData.client_secret;
       if (!ephemeralKey) throw new Error("No ephemeral key returned");
 
       const pc = new RTCPeerConnection();
@@ -483,7 +486,7 @@ export default function VoiceAgent() {
       await pc.setLocalDescription(offer);
 
       const sdpRes = await fetch(
-        "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+        "https://api.openai.com/v1/realtime/calls",
         {
           method: "POST",
           headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp" },
