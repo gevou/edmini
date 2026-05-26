@@ -114,7 +114,7 @@ If you don't remember the most recent actionId, just acknowledge the cancellatio
         output_modalities: ["audio"],
         audio: {
           input: {
-            format: "pcm16",
+            format: { type: "audio/pcm", rate: 24000 },
             transcription: { model: "whisper-1" },
             turn_detection: {
               type: "server_vad",
@@ -124,7 +124,7 @@ If you don't remember the most recent actionId, just acknowledge the cancellatio
             },
           },
           output: {
-            format: "pcm16",
+            format: { type: "audio/pcm", rate: 24000 },
             voice: "alloy",
           },
         },
