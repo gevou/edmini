@@ -110,3 +110,33 @@
 - ... and 2 more
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-25 — edmini / main → PR #3 merged as `aea26d0`
+
+**Theme:** Audio was broken on startup; tracked it to the OpenAI Realtime Beta shutdown and migrated to GA.
+
+### What happened
+- Reported error on enabling audio: *"The Realtime Beta API is no longer supported. Please /v1/realtime for the GA API."* The Beta surface was retired on 2026-05-12.
+- Filed `edmini-7bk` (P1 bug). Surveyed call sites: ephemeral session creation in `src/app/api/session/route.ts` and SDP exchange in `src/components/VoiceAgent.tsx`.
+- Migrated both files: new endpoints (`/v1/realtime/client_secrets`, `/v1/realtime/calls`), GA payload envelope (`{ expires_after, session: { type: "realtime", ... } }`), model bump to `gpt-realtime`, audio config moved under `session.audio.{input,output}`, `output_modalities` instead of `modalities`, GA event names (`response.output_audio.*`, `response.output_text.*`).
+- First deploy failed in the browser with *"Invalid type for 'session.audio.input.format': expected an object, but got a string instead."* — GA expects `format: { type: "audio/pcm", rate: 24000 }`, not the string `"pcm16"`. Fixed in follow-up commit `52f15b8`. Closed `edmini-7bk` with `verified`.
+
+### Detours
+- `bd` reported a downgrade to v0.49.4 mid-session. Diagnosis: stale binary at `~/.local/bin/bd` (Feb 6 install) was shadowing Homebrew's v1.0.4 on PATH. Renamed the stale binary to `bd.old-0.49.4`. Reinitialized the v1.0.4 dolt store for this project with `--prefix edmini` (the v0.49.4 SQLite DB stayed on disk, contains a closed `edmini-d8h` from before).
+- Wrapped the previous `feat/use-workflow-directives` branch — PR #2 had already merged it; just discarded auto-journal noise and cleaned up the local branch.
+- One self-inflicted hiccup: an exploratory `git stash` to compare TS baseline reverted my in-progress edits. `git stash pop` recovered them after clearing a `tsconfig.tsbuildinfo` conflict. Lesson: don't stash to diff baselines mid-edit.
+
+### Files changed
+- `src/app/api/session/route.ts` (endpoint + payload shape + model)
+- `src/components/VoiceAgent.tsx` (SDP endpoint + event renames + ephemeral key reader)
+- `PROJECT_STATUS.md` (this update)
+- `docs/SESSION_SUMMARIES.md` (this entry)
+
+### Loose ends not landed
+- bd-init tooling artifacts: `.gitignore` additions, `AGENTS.md` appended section, new `CLAUDE.md`, new `.claude/settings.json`.
+- Build artifact: `tsconfig.tsbuildinfo` (modified). Probably should be gitignored.
+- Untracked: `.understand-anything/`, `mission-control.html`.
+
+> *Hand-written entry. Future sessions: see `PROJECT_STATUS.md` for current state.*
