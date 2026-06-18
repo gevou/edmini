@@ -21,10 +21,10 @@ load_env() {
   refs="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=op://' "$f" 2>/dev/null || true)"
   [ -n "$refs" ] || return 0
   command -v op >/dev/null 2>&1 || die "$f uses op:// references but the 1Password CLI 'op' is not installed."
-  ensure_op || die "$f uses op:// references but 'op' is not signed in (enable the 1Password desktop app's CLI integration, or run: eval \$(op signin))."
+  ensure_op || true   # best-effort interactive sign-in; the `op read` below is the real gate
   while IFS= read -r line; do
     k="${line%%=*}"; v="${line#*=}"
-    real="$(op read "$v" 2>/dev/null)" || die "op read failed for $k ($v)"
+    real="$(op read "$v" 2>/dev/null)" || die "could not read $k from 1Password ($v) — check the item exists and CLI access is enabled (1Password → Settings → Developer → Integrate with 1Password CLI), then approve the unlock prompt."
     export "$k=$real"
   done <<< "$refs"
 }

@@ -15,7 +15,7 @@ infra/
   preflight.sh               # validate tokens / channel / DB / Hermes reachability
   lib.sh                     # shared helpers
   discord/
-    bootstrap.sh             # auto-create the dedicated guild + #edmini-bus channel; print invite URL
+    bootstrap.sh             # print bot invite URLs; auto-detect the shared server; create #edmini-bus
   hermes/
     project.env.example      # Discord bot tokens + bus config (init.sh fills this)
     configure.sh             # write Discord config into ~/.hermes/.env, restart gateway
@@ -35,21 +35,24 @@ The **only** irreducible manual work, because the platforms have no API for it:
 
 1. **Two Discord bots.** At <https://discord.com/developers/applications> create two applications
    ("Hermes", "edmini"); for each, enable the **MESSAGE CONTENT INTENT** and copy the bot token.
-2. **One Supabase access token.** <https://supabase.com/dashboard/account/tokens>.
+2. **One Discord server.** Bots cannot create servers (Discord `code 20001`), so make one (Discord →
+   "+" → Create My Own) or reuse one, and add **both** bots via the invite URLs `bootstrap.sh` prints.
+3. **One Supabase access token.** <https://supabase.com/dashboard/account/tokens>.
 
-Then run the wizard and paste those three values:
+Then run the wizard and paste the three tokens:
 
 ```bash
 ./infra/init.sh
 ```
 
-`init.sh` will: write the gitignored `project.env` files, **auto-create** a dedicated Discord guild
-and `#edmini-bus` channel, print **one invite URL** (click it to add the edmini bot), **auto-create**
-the Supabase project + ledger schema, configure Hermes for the bus, and run preflight.
+`init.sh` (via `up.sh`) will: write the gitignored `project.env` files, **auto-create** the Supabase
+project + ledger schema, print the **two bot invite URLs**, and — once both bots are in the same
+server — **auto-detect** that server and create the `#edmini-bus` channel, then configure Hermes.
+First run prints the invites and stops; after you add the bots, **re-run `./infra/up.sh`** to finish.
 
-That's it — create 2 bots + 1 token, run one command, click one link. No server/channel creation, no
-hunting for connection strings, no hand-editing files. (Discord auth is bot-token only — no OAuth
-login flow; Supabase needs no `supabase login` — the PAT covers it.)
+So: create 2 bots + 1 token, make a server + click 2 invites, run one command (twice). No channel
+creation, no hunting for connection strings, no hand-editing files. (Discord auth is bot-token only —
+no OAuth login flow; Supabase needs no `supabase login` — the PAT covers it.)
 
 ## 1Password (source of truth for the must-provide secrets)
 
@@ -84,8 +87,8 @@ storage. (For app/worker *runtime* secrets later, the same pattern works via `op
   in `~/.hermes/.env` and backs the file up first — your other Hermes settings are untouched.
 - The Hermes gateway runs as a launchd service (`ai.hermes.gateway`); scripts restart it via
   `hermes gateway restart`.
-- Guild auto-creation needs the Hermes bot to be in <10 guilds (Discord limit). To use an existing
-  server instead, set `EDMINI_GUILD_ID` in `infra/hermes/project.env`.
-- The bot invite requests Administrator on the **dedicated** guild for simplicity; scope it down if
+- Bots can't create servers (`code 20001`). `bootstrap.sh` auto-detects the server **both** bots
+  share; if they share several, set `EDMINI_GUILD_ID` in `infra/hermes/project.env` to pick one.
+- The bot invites request Administrator for simplicity (fine on a dedicated server); scope down if
   you reuse a shared server.
 - **Future:** a hosted Hermes test instance so dev doesn't depend on this MacBook (beads `edmini-pmo`).

@@ -45,14 +45,7 @@ grep -qE '^EDMINI_BUS_CHANNEL=' "$HE" || upsert_env "$HE" EDMINI_BUS_CHANNEL edm
 echo "Supabase (create a Personal Access Token at supabase.com/dashboard/account/tokens):"
 ask_secret SUPABASE_ACCESS_TOKEN    "$SE" "Supabase access token (PAT)" "edmini-supabase-pat"
 
-echo ""; echo "▶ Provisioning Discord guild + channel…"
-"$HERE/discord/bootstrap.sh"
-echo ""; read -r -p "Click the invite URL above to add the edmini bot, then press Enter to continue… " _
-
-echo ""; echo "▶ Provisioning Supabase project…"
-"$HERE/supabase/provision.sh"
-
-echo ""; echo "▶ Bringing infra up (configure Hermes + apply ledger)…"
+echo ""; echo "▶ Bringing infra up (provision Supabase + Discord + configure Hermes)…"
 "$HERE/up.sh"
 
 echo ""; echo "▶ Preflight…"
