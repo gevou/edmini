@@ -18,3 +18,7 @@ next-env.d.ts
 .dolt/
 *.db
 .beads-credential-key
+
+# Infra local secrets (never commit tokens / connection strings)
+infra/**/project.env
+infra/**/*.local.env

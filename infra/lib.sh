@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Shared helpers for edmini infra scripts. Source this; don't execute.
+
+# Upsert KEY=VALUE into an env file (replace existing line or append). Value used verbatim.
+upsert_env() {
+  local f="$1" k="$2" v="$3" tmp
+  touch "$f"
+  tmp="$(mktemp)"
+  grep -vE "^${k}=" "$f" > "$tmp" 2>/dev/null || true
+  printf '%s=%s\n' "$k" "$v" >> "$tmp"
+  mv "$tmp" "$f"
+}
+
+# Load an env file if it exists (exports all keys). Any value of the form `op://vault/item/field`
+# is resolved through the 1Password CLI at runtime, so secrets never need to sit raw on disk.
+load_env() {
+  local f="$1" refs line k v real
+  [ -f "$f" ] || return 0
+  set -a; # shellcheck disable=SC1090
+  source "$f"; set +a
+  refs="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=op://' "$f" 2>/dev/null || true)"
+  [ -n "$refs" ] || return 0
+  command -v op >/dev/null 2>&1 || die "$f uses op:// references but the 1Password CLI 'op' is not installed."
+  op whoami >/dev/null 2>&1 || die "$f uses op:// references but 'op' is not signed in (enable the 1Password desktop app's CLI integration, or run: eval \$(op signin))."
+  while IFS= read -r line; do
+    k="${line%%=*}"; v="${line#*=}"
+    real="$(op read "$v" 2>/dev/null)" || die "op read failed for $k ($v)"
+    export "$k=$real"
+  done <<< "$refs"
+}
+
+# Store a secret in 1Password (create or update) and echo its op:// reference.
+# Args: <vault> <item-title> <value>. Uses the 'API Credential' category's `credential` field.
+op_put() {
+  local vault="$1" item="$2" value="$3"
+  if op item get "$item" --vault "$vault" >/dev/null 2>&1; then
+    op item edit "$item" --vault "$vault" "credential=$value" >/dev/null
+  else
+    op item create --category "API Credential" --title "$item" --vault "$vault" "credential=$value" >/dev/null
+  fi
+  printf 'op://%s/%s/credential' "$vault" "$item"
+}
+
+die() { echo "✗ $*" >&2; exit 1; }
+note() { echo "• $*"; }
+ok() { echo "✓ $*"; }

@@ -952,3 +952,102 @@
 - ... and 3 more
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 22:15 — edmini / main
+
+**Last commit:** `c478852 docs(arch): edmini v1 design (voice layer over harness) + journaling automation`
+
+### Modified files
+- `.gitignore`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/README.md`
+- `infra/hermes/configure.sh`
+- `infra/hermes/project.env.example`
+- `infra/hermes/reset.sh`
+- `infra/hermes/send-test.sh`
+- `infra/hermes/status.sh`
+- ... and 6 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 22:21 — edmini / main
+
+**Last commit:** `c478852 docs(arch): edmini v1 design (voice layer over harness) + journaling automation`
+
+### Modified files
+- `.gitignore`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/README.md`
+- `infra/hermes/configure.sh`
+- `infra/hermes/project.env.example`
+- `infra/hermes/reset.sh`
+- `infra/hermes/send-test.sh`
+- `infra/hermes/status.sh`
+- ... and 6 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 22:39 — edmini / main
+
+**Last commit:** `c478852 docs(arch): edmini v1 design (voice layer over harness) + journaling automation`
+
+### Modified files
+- `.gitignore`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/README.md`
+- `infra/discord/bootstrap.sh`
+- `infra/hermes/configure.sh`
+- `infra/hermes/project.env.example`
+- `infra/hermes/reset.sh`
+- `infra/hermes/send-test.sh`
+- ... and 10 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 22:44 — edmini / main
+
+**Last commit:** `c478852 docs(arch): edmini v1 design (voice layer over harness) + journaling automation`
+
+### Modified files
+- `.gitignore`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/README.md`
+- `infra/discord/bootstrap.sh`
+- `infra/hermes/configure.sh`
+- `infra/hermes/project.env.example`
+- `infra/hermes/reset.sh`
+- `infra/hermes/send-test.sh`
+- ... and 10 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
