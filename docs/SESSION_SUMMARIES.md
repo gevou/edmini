@@ -140,3 +140,815 @@
 - Untracked: `.understand-anything/`, `mission-control.html`.
 
 > *Hand-written entry. Future sessions: see `PROJECT_STATUS.md` for current state.*
+
+---
+
+## 2026-05-25 20:46 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-25 22:51 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-25 22:53 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-25 23:03 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:01 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:05 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:08 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:08 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:13 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:16 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:17 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:18 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:20 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:22 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-28 00:24 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 21:26 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 21:28 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 21:56 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:01 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:02 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:06 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:08 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:10 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:17 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:21 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:28 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:33 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-05-31 22:42 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-06 19:06 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-06 19:07 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-06 19:22 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-06 19:30 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-16 23:44 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 01:00 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 01:02 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 01:03 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 01:19 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/architecture/edmini-v1-design.md`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- `docs/superpowers/specs/2026-05-28-supervisor-thread-model-design.md`
+- ... and 1 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 01:29 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `docs/DEVELOPMENT_JOURNAL.md`
+- `docs/architecture/edmini-v1-design.md`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- `docs/architecture/supervisor-architecture-thesis.md`
+- ... and 2 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 19:56 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/hooks/journal-precompact.sh`
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `PROJECT_JOURNAL.md`
+- `docs/architecture/edmini-v1-design.md`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- ... and 3 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 20:01 — edmini / main
+
+**Last commit:** `553cb8d Merge pull request #4 from gevou/chore/docs-and-bd-init`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/hooks/journal-precompact.sh`
+- `.claude/settings.json`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `PROJECT_JOURNAL.md`
+- `docs/architecture/edmini-v1-design.md`
+- `docs/architecture/supervisor-architecture-analysis.md`
+- `docs/architecture/supervisor-architecture-design-v3.md`
+- ... and 3 more
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
