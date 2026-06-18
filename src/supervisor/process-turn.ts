@@ -1,6 +1,4 @@
-import { sleep } from "workflow";
 import { callDecideAndExecute, callRephrase, type DecideResult } from "./llm";
-import { tavilySearch, sendTelegram } from "./execute";
 import { pushServerEvent, type EventLogEntry } from "@/lib/server-event-log";
 import type { RephrasedResult } from "./types";
 
@@ -26,54 +24,18 @@ export async function processAction(
   actionId: string,
 ): Promise<void> {
   "use workflow";
+  // v1: edmini does NOT execute. It classifies intent and delegates execution to the harness
+  // over the bus (Discord). This records the intent; actual dispatch lands with the transport +
+  // envelope wiring (beads edmini-n12 / edmini-fw5). See docs/architecture/edmini-v1-design.md.
   const decision = await decideAction(rephrased);
-
-  if (!decision.capability) return;
-
   await recordEvent({
     kind: "dispatched",
-    label: `Executing: ${decision.capability}`,
-    payload: { actionId, capability: decision.capability, params: decision.params },
+    label: decision.capability ? `Would delegate: ${decision.capability}` : "No external action",
+    detail: "edmini delegates execution to the harness — no built-in execution in v1.",
+    payload: {
+      actionId,
+      capability: decision.capability ?? null,
+      params: decision.params ?? {},
+    },
   });
-
-  try {
-    if (decision.capability === "web_search") {
-      const query = decision.params.query as string;
-      const results = await tavilySearch(query);
-      const summary = results.map((r, i) => `${i + 1}. ${r.title} — ${r.content.slice(0, 120)}`).join("\n");
-      await recordEvent({
-        kind: "completed",
-        label: "Search complete",
-        detail: summary.slice(0, 300),
-        payload: {
-          actionId,
-          capability: "web_search",
-          summary: `I found ${results.length} results for "${query}": ${results.map((r) => r.title).join(", ")}.`,
-        },
-      });
-    } else if (decision.capability === "send_message") {
-      const body = String(decision.params.body ?? "");
-      await recordEvent({
-        kind: "awaiting",
-        label: "Sleeping 60s before Telegram send",
-        detail: "Close the tab / end voice now — the workflow keeps running.",
-        payload: { actionId, capability: "send_message", durationMs: 60_000 },
-      });
-      await sleep("60s");
-      await sendTelegram(body);
-      await recordEvent({
-        kind: "completed",
-        label: "Telegram sent",
-        detail: body.slice(0, 200),
-        payload: {
-          actionId,
-          capability: "send_message",
-          summary: `Sent on Telegram: ${body}`,
-        },
-      });
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await recordEvent({ kind: "failed", label: "Action failed", detail: msg, payload: { actionId } });
-  }
 }

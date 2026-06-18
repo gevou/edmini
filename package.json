@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "supervisor:test": "tsx src/supervisor/cli/test.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

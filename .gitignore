@@ -22,3 +22,6 @@ next-env.d.ts
 # Infra local secrets (never commit tokens / connection strings)
 infra/**/project.env
 infra/**/*.local.env
+
+# TypeScript incremental build artifact
+tsconfig.tsbuildinfo
