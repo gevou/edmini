@@ -18,6 +18,70 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-18 — Where the scripts meet the platforms
+
+*A clean set of provisioning scripts met five different platform realities in one night. What
+survived contact — and why "it passes `bash -n`" tells you almost nothing — is the story.*
+
+The day started in code and ended in dirt. Two pieces of groundwork went in first. The
+**foundations**: a dependency-free envelope contract (`src/lib/bus/envelope.ts`) — edmini's internal
+event vocabulary, deliberately decoupled from whatever transport carries it — and the pure heart of
+the **ledger** (`src/lib/ledger.ts`): event/row types, mapping, and a `projectRuns` projection that
+mirrors the SQL `runs` view, all unit-tested without a database. Then the **cleanup**: deleting the
+hackathon executor (`execute.ts`, the Tavily/Telegram capability switch) so edmini finally *is* what
+the thesis says it is — a supervisor that delegates, not an agent that does. That took the test suite
+from 26-pass/8-fail to 37 green and the build clean.
+
+The larger goal for the night was *reproducible infrastructure*: one command to stand up the Hermes
+bus and the Supabase ledger, grounded in the **real** Hermes v0.14.0 CLI rather than a guessed one
+(inspecting `~/.hermes` revealed the actual knobs — `DISCORD_ALLOW_BOTS`, `DISCORD_HOME_CHANNEL_NAME`,
+the launchd gateway). Two product decisions shaped it: minimize the irreducible manual steps, and make
+**1Password the source of truth** for the secrets the human must supply — `project.env` holds only
+`op://` references, resolved at runtime via `op read`, so no token ever lands raw on disk.
+
+Then we ran it, and reality arrived in five acts. **One:** Discord bots *cannot create servers* — the
+API returns `code 20001 "Bots cannot use this endpoint"`, flatly contradicting the research that had
+confidently said a bot in <10 guilds could. The whole "auto-create a dedicated guild" design was
+wrong; it became "you make one server, the script auto-detects the one both bots share and creates the
+channel there." **Two:** my `curl -f` had been swallowing Discord's JSON error body, so the failure
+was opaque ("curl 56") until I dropped it and the real `20001` surfaced. **Three:** `op whoami`
+returns non-zero under 1Password desktop-app integration even when `op read` works fine — my
+sign-in gate was rejecting a perfectly good setup; the fix was to stop gating on `whoami` and let the
+actual `op read` be the test. **Four — the sharp one:** `configure.sh` sourced `project.env` directly
+instead of through `load_env`, so it wrote the *literal* string `op://Private/edmini-hermes-bot/credential`
+into Hermes's `.env` — a 41-character "token" — which is exactly why Hermes got a `401`. The same
+1Password reference that resolved fine everywhere else was being written unresolved in the one place
+it mattered. **Five:** Supabase's free tier caps at two projects per org (we were at the cap), and the
+CLI prints a "Cannot find project ref" warning line that corrupted my JSON parse — both masked by a
+stray `2>/dev/null`.
+
+Each of these was invisible to `bash -n`, to syntax review, to reading the code carefully. They only
+showed up by running the thing against the live platforms, one prompt and one HTTP call at a time.
+That is the entry's real lesson: provisioning scripts are a genre where *looks correct* and *is
+correct* are nearly uncorrelated, and the gap is entirely platform behavior you can't see from the
+shell.
+
+By the end, the **Discord bus is genuinely live and verified**: both bots in a dedicated server,
+`#edmini-bus` created, Hermes configured with the real token and restarted, and `hermes send` landing
+messages in the channel. The **Supabase ledger is the one thing still pending — and through no fault
+of ours**: midway through, Supabase disabled project creation platform-wide (a real incident). Even
+after the status banner cleared, the create API kept returning "disabled," so the ledger waits on
+their rollout. Everything is idempotent and the DB password is already persisted, so the resumption
+is a single re-run.
+
+**Open questions.** Will the constructed Supabase session-pooler URL connect on first try, or will we
+need the dashboard's exact URI (the one caveat we couldn't test while creation was down)? Does Hermes
+actually *read* `#edmini-bus` once its gateway finishes channel discovery, and what does its real
+free-form chatter look like (the fixtures the interpreter needs)?
+
+**Angles worth publishing.** *"Five ways a correct-looking script is wrong"* — a field guide to
+provisioning against real platforms. *When your research is confidently wrong* — the `code 20001`
+story and designing for capabilities you verify live, not docs you trust. *Secrets as references, not
+values* — the 1Password `op://` pattern, and the subtle bug of writing a reference where a value was
+due.
+
+---
+
 ### 2026-06-17 — From an ambitious specification to a shippable voice layer
 
 *How a sprawling "attention-accounting" architecture was cut down to one defensible first version —

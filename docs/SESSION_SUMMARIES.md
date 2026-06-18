@@ -1102,3 +1102,200 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:24 — edmini / main
+
+**Last commit:** `67b0a66 feat(v1): envelope contract + ledger core; remove hackathon executor`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:26 — edmini / main
+
+**Last commit:** `67b0a66 feat(v1): envelope contract + ledger core; remove hackathon executor`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:31 — edmini / main
+
+**Last commit:** `67b0a66 feat(v1): envelope contract + ledger core; remove hackathon executor`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:38 — edmini / main
+
+**Last commit:** `67b0a66 feat(v1): envelope contract + ledger core; remove hackathon executor`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:40 — edmini / main
+
+**Last commit:** `67b0a66 feat(v1): envelope contract + ledger core; remove hackathon executor`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-17 23:53 — edmini / main
+
+**Last commit:** `f22590b feat(infra): ensure 1Password session (auto op signin) before resolving op:// refs`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:03 — edmini / main
+
+**Last commit:** `232634c fix(infra): bots can't create Discord servers (code 20001) — detect shared server instead`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:03 — edmini / main
+
+**Last commit:** `232634c fix(infra): bots can't create Discord servers (code 20001) — detect shared server instead`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:13 — edmini / main
+
+**Last commit:** `232634c fix(infra): bots can't create Discord servers (code 20001) — detect shared server instead`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+- `infra/supabase/provision.sh`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+- `roles.sql`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:35 — edmini / main
+
+**Last commit:** `8181556 fix(infra): resolve op:// in configure.sh; harden provision.sh + send-test`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:37 — edmini / main
+
+**Last commit:** `8181556 fix(infra): resolve op:// in configure.sh; harden provision.sh + send-test`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
