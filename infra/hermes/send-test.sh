@@ -11,6 +11,9 @@ set -a; source "$PROJECT_ENV"; set +a
 : "${EDMINI_BUS_CHANNEL:?Set EDMINI_BUS_CHANNEL in project.env}"
 
 MSG="${1:-edmini infra send-test $(date '+%H:%M:%S')}"
-echo "• Sending to discord:#$EDMINI_BUS_CHANNEL …"
-hermes send --to "discord:#${EDMINI_BUS_CHANNEL}" "$MSG"
+# Prefer the channel ID (robust right after a gateway restart, before name discovery populates).
+TARGET="discord:#${EDMINI_BUS_CHANNEL}"
+[ -n "${EDMINI_BUS_CHANNEL_ID:-}" ] && TARGET="discord:${EDMINI_BUS_CHANNEL_ID}"
+echo "• Sending to $TARGET …"
+hermes send --to "$TARGET" "$MSG"
 echo "✓ Sent. Check the channel."

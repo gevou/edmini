@@ -16,9 +16,10 @@ command -v hermes >/dev/null 2>&1 || { echo "✗ 'hermes' not on PATH. Install H
 [ -f "$PROJECT_ENV" ] || { echo "✗ Missing $PROJECT_ENV — copy project.env.example to project.env and fill it in."; exit 1; }
 [ -f "$ENV_FILE" ] || { echo "✗ $ENV_FILE not found — is Hermes initialised? Try 'hermes setup'."; exit 1; }
 
-# Load project config (no export of secrets to child logs).
-set -a; # shellcheck disable=SC1090
-source "$PROJECT_ENV"; set +a
+# Load project config, RESOLVING any 1Password (op://) references via load_env.
+# shellcheck disable=SC1091
+source "$HERE/../lib.sh"
+load_env "$PROJECT_ENV"
 
 : "${DISCORD_BOT_TOKEN:?Set DISCORD_BOT_TOKEN in project.env}"
 : "${EDMINI_BUS_CHANNEL:?Set EDMINI_BUS_CHANNEL in project.env}"
