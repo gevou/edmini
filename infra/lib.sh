@@ -21,7 +21,7 @@ load_env() {
   refs="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=op://' "$f" 2>/dev/null || true)"
   [ -n "$refs" ] || return 0
   command -v op >/dev/null 2>&1 || die "$f uses op:// references but the 1Password CLI 'op' is not installed."
-  op whoami >/dev/null 2>&1 || die "$f uses op:// references but 'op' is not signed in (enable the 1Password desktop app's CLI integration, or run: eval \$(op signin))."
+  ensure_op || die "$f uses op:// references but 'op' is not signed in (enable the 1Password desktop app's CLI integration, or run: eval \$(op signin))."
   while IFS= read -r line; do
     k="${line%%=*}"; v="${line#*=}"
     real="$(op read "$v" 2>/dev/null)" || die "op read failed for $k ($v)"
@@ -44,3 +44,18 @@ op_put() {
 die() { echo "✗ $*" >&2; exit 1; }
 note() { echo "• $*"; }
 ok() { echo "✓ $*"; }
+
+# Ensure the 1Password CLI has a usable session. No-op if op isn't installed (refs optional) or
+# already signed in (e.g. via the desktop app integration, which uses biometrics per command).
+# If signed out and we're in an interactive terminal, runs `op signin`. Returns non-zero if it
+# still isn't usable (callers that actually need op:// refs then fail with a clear message).
+ensure_op() {
+  command -v op >/dev/null 2>&1 || return 0
+  op whoami >/dev/null 2>&1 && return 0
+  if [ -t 0 ]; then
+    note "1Password CLI not signed in — running 'op signin'…"
+    eval "$(op signin 2>/dev/null)" 2>/dev/null || true
+    op whoami >/dev/null 2>&1 && { ok "1Password signed in."; return 0; }
+  fi
+  return 1
+}

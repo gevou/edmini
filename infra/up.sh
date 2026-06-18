@@ -9,6 +9,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$HERE/lib.sh"
+ensure_op || true   # prompt `op signin` up front if needed; load_env enforces when op:// refs are used
 load_env "$HERE/hermes/project.env"
 load_env "$HERE/supabase/project.env"
 
