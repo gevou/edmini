@@ -33,18 +33,17 @@ BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "un
 
 ENTRY=$(claude -p "You are appending ONE entry to PROJECT_JOURNAL.md for the project 'edmini' (a voice agent that supervises autonomous executors over a Discord bus + Supabase ledger).
 
-Write a PRAGMATIC, FACTUAL engineering-log entry — detail over style. Capture raw material (what changed, why, how it was verified) so it can be repurposed later. Do NOT dramatize, editorialize, or write essay/narrative prose. Neutral tone, dense with specifics. INCLUDE concrete artifacts: file paths, key code snippets (in fenced code blocks), commands, results/output, and small mermaid diagrams for architecture/flow/data when they help. Prefer structured sections + bullets over paragraphs.
+Goal: a RICH, DETAILED record that captures raw material to tell stories from LATER — this is NOT the finished blog post. Detail over brevity: do not over-condense; capturing the specifics matters more than length.
 
-From the session transcript below, write a single entry as Markdown — use fenced blocks for code/mermaid, but do NOT wrap the whole entry in one code fence. Begin with this exact heading and use whichever sections apply:
+Capture the SPECIFICS of this session: the actual decisions and the reasoning behind them, alternatives weighed, dead ends, surprises, and the concrete changes — file paths, key code snippets (fenced), commands, results/output, and small mermaid diagrams for architecture/flow/data. Where a moment turned on something said, QUOTE it directly from the transcript (the user's words, or a key exchange) instead of paraphrasing generically.
 
-### $TODAY — <concise factual title>
+Narrative is welcome WHEN it describes something specific (a real decision, change, exchange, or problem). Avoid generic or dramatized filler not tied to specifics, and don't pre-write a polished article — leave the shaping for later.
 
-- **What changed** — files added/modified, components, commit hashes.
-- **Decisions** — choice + brief factual reason + alternatives considered.
-- **Code / diagrams** — key snippets and/or a small mermaid diagram.
-- **Verification** — commands run + results (tests, smoke, live checks).
-- **Gotchas** — concrete issues + fixes.
-- **Open / next** — what's pending.
+From the session transcript below, write a single entry as Markdown — use fenced blocks for code/mermaid, but do NOT wrap the whole entry in one code fence. Begin with this exact heading; organize however best fits (sections, prose, quotes, snippets):
+
+### $TODAY — <specific title>
+
+Include when present: what changed (files/components/commits); decisions + reasoning + alternatives; direct quotes of pivotal dialog; code snippets / diagrams; verification (commands + results); gotchas + fixes; open/next.
 
 ---
 
