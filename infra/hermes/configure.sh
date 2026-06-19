@@ -54,6 +54,14 @@ awk -v s="$MARK_START" -v e="$MARK_END" '
 rm -f "$tmp"
 echo "• Wrote edmini-managed Discord block to $ENV_FILE (bus channel: #$EDMINI_BUS_CHANNEL, allow_bots=$DISCORD_ALLOW_BOTS)"
 
+# config.yaml takes PRECEDENCE over ~/.hermes/.env for these — empty values there silently override
+# the env block above (an empty free_response_channels short-circuits the env lookup). Set them
+# explicitly so Hermes actually responds in the bus channel without an @mention.
+hermes config set discord.require_mention false >/dev/null 2>&1 || true
+hermes config set discord.free_response_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
+hermes config set discord.allowed_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
+echo "• Set discord.{require_mention=false, free_response_channels, allowed_channels} in config.yaml"
+
 # Restart the gateway so it picks up the new platform config.
 echo "• Restarting Hermes gateway…"
 hermes gateway restart || { echo "✗ gateway restart failed — check 'hermes gateway status'"; exit 1; }

@@ -1299,3 +1299,72 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-18 00:41 — edmini / main
+
+**Last commit:** `ebba874 docs: journal entry + status handoff for the 2026-06-18 infra/provisioning session`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 01:17 — edmini / main
+
+**Last commit:** `0b95123 docs: infra provisioning complete — Supabase ledger live (handoff update)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 01:19 — edmini / main
+
+**Last commit:** `0b95123 docs: infra provisioning complete — Supabase ledger live (handoff update)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 01:20 — edmini / main
+
+**Last commit:** `0b95123 docs: infra provisioning complete — Supabase ledger live (handoff update)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

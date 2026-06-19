@@ -1,0 +1,23 @@
+[
+  {
+    "prompt": "(system — gateway start, no explicit prompt)",
+    "hermes": "edmini bus online — 00:33:03",
+    "kind": "run_started",
+    "ts": "2026-06-18T07:33:05.077000+00:00",
+    "note": "EdHermes auto-posts this on gateway start to its home channel (DISCORD_HOME_CHANNEL). Format: '<channel-name> online — HH:MM:SS'. No prompt needed; this is a lifecycle broadcast. Maps to run_started because it signals the harness is alive and ready."
+  },
+  {
+    "prompt": "(system — SIGTERM received, no explicit prompt)",
+    "hermes": "⚠️ Gateway shutting down — Your current task will be interrupted.",
+    "kind": "run_failed",
+    "ts": "2026-06-19T08:09:33.554000+00:00",
+    "note": "EdHermes posts this on receiving SIGTERM before teardown. The emoji prefix ⚠️ is a consistent visual marker for warnings/interruptions. 'Your current task will be interrupted' implies a run was in progress. Maps to run_failed because the run was aborted mid-flight by a signal, not natural completion."
+  },
+  {
+    "prompt": "BLOCKED — config bug prevented Hermes from reading non-mention messages from the edmini bot. See report.",
+    "hermes": null,
+    "kind": null,
+    "ts": null,
+    "note": "Test prompts sent as Edmini bot (id=1517057807398998096) at 08:25:02, 08:25:31, 08:29:54 UTC. All unanswered. Root cause: ~/.hermes/config.yaml sets free_response_channels: '' (empty string), which short-circuits the DISCORD_FREE_RESPONSE_CHANNELS env var lookup in _discord_free_response_channels(). Since require_mention: true is also set in config.yaml, messages without @EdHermes mention are silently dropped. Vault also locked partway through testing, blocking further edmini-bot sends."
+  }
+]
