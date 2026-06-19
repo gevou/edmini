@@ -18,6 +18,55 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — The bus that wouldn't talk: three gates and a marker taxonomy
+
+*The ledger and the Discord bus were both "provisioned" and green — yet Hermes answered every
+message with a ✓ reaction and nothing else. Three stacked authorization gates, none where the
+docs implied, stood between a passing checklist and a bus that actually worked.*
+
+The day began by refusing to trust the green checkmarks. Both halves of the infra were "up," so the
+real question was whether they *worked*. Two agents went out in parallel. One took `4sw` — the pnpm
+drift (lockfile 9, a pnpm-8 on PATH, a pnpm-9 store) — and resolved it cleanly by pinning
+`pnpm@9.15.9` through corepack and adding `@supabase/supabase-js`, which also unblocks the ledger
+client. The other took `pmo`: prove Hermes reads the bus.
+
+It didn't. Posting to `#edmini-bus` produced a ✓ reaction and no reply — the most ambiguous failure
+there is, because the ✓ proves the message was *seen*. The answer wasn't in any doc; it was in
+Hermes's own source and gateway log, and it came in three layers. First, `config.yaml` had
+`free_response_channels: ''` and `require_mention: true`, and for channel routing **config.yaml
+overrides the env vars** our `configure.sh` had set — so non-mention messages were dropped. Second,
+`DISCORD_ALLOW_BOTS=true` is silently invalid: the code checks membership in `{'mentions','all'}`, so
+`'true'` never authorizes a bot sender. Third — and this is the trap — *user* authorization is
+**env-gated** (`os.getenv('DISCORD_ALLOW_ALL_USERS')`), the exact opposite precedence from the first
+gate. Setting it in `config.yaml` (the natural symmetry) did nothing. The log line
+`Unauthorized user: … (George V) on discord` was the thread that unravelled it.
+
+The lesson worth keeping: in a system like Hermes, config-vs-env precedence is **per-setting and
+undocumented**. Channel routing trusts the file; authorization trusts the environment. The only
+reliable way through was reading `gateway/run.py` and tailing `gateway.log` — not the docs, not
+assumptions. Every fix was then baked into `configure.sh` so the next `up.sh` gets it right.
+
+Once it talked, the payoff was a gift for the interpreter. Hermes's free-form replies aren't truly
+unstructured: they carry **emoji markers** — `❓ clarify:` for a question it needs answered,
+`⏳ Still working…` as a ~3-minute heartbeat, `⚠️` for interruption, plain prose for a result. That
+turns the inbound interpreter (`dze`) from a pure-LLM classifier into **marker-deterministic with an
+LLM fallback** for plain text — cheaper and more reliable. A second, accidental finding: Hermes is
+single-task — a blocked clarify *holds the session*, so rapid follow-ups got "still working." That
+independently validates edmini's "one active run at a time" design. We verified the production path
+too (the edmini *bot* driving Hermes, not just a human), captured the fixtures, and closed `pmo`.
+
+**Open questions.** The ledger client (`yak`) needs the Supabase anon/service keys and an RLS stance
+for single-user v1 — does the browser subscribe with anon under permissive RLS, or do we keep RLS
+off for now? Will Realtime deliver inserts to the voice app as cleanly as the psql/API checks
+suggest?
+
+**Angles worth publishing.** *"The ✓ that meant no"* — debugging an opaque agent harness through its
+own source and logs. *Precedence is a lie* — when half your settings trust the file and half trust
+the environment. *Free-form, but not unstructured* — keying an interpreter off an agent's emoji
+markers before reaching for the LLM.
+
+---
+
 ### 2026-06-18 — Where the scripts meet the platforms
 
 *A clean set of provisioning scripts met five different platform realities in one night. What

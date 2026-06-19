@@ -32,13 +32,26 @@ done; tonight was foundations + reproducible infra + live provisioning.
 - Both halves (Discord bus + Supabase ledger) are up. `preflight.sh` needs the 1Password vault
   unlocked when run (it re-locks between calls).
 
+### Harness + bus VERIFIED (`edmini-pmo` ✓, `edmini-4sw` ✓, 2026-06-19)
+- **Bus is bidirectional** — Hermes reads `#edmini-bus` and replies, verified for BOTH human→Hermes
+  and the production **edmini-bot→Hermes** path (`infra/hermes/capture-fixtures.py`).
+- **3 Hermes gates** found (via source + `gateway.log`) and fixed into `configure.sh`:
+  (1) `config.yaml` `free_response_channels:''`/`require_mention:true` override env (config wins for
+  routing); (2) `DISCORD_ALLOW_BOTS` must be `all` (not `true`); (3) user auth is ENV-gated
+  (`DISCORD_ALLOW_ALL_USERS`), not config.yaml.
+- **`4sw`** — pnpm pinned to 9.15.9 via corepack (`packageManager`); `@supabase/supabase-js` 2.108.2 in.
+- **Interpreter insight (for `dze`)** — Hermes uses emoji markers: `❓ clarify:`=run_blocked,
+  `⏳ Still working…`=heartbeat (~180s), `⚠️`=run_failed, plain=run_output. Fixtures:
+  `src/lib/bus/__fixtures__/hermes-messages.json`. Hermes is single-task (validates one-active-run).
+
 ## Next steps (in order)
-1. **Harness standup** (`edmini-pmo`): confirm Hermes *reads* `#edmini-bus` after channel discovery;
-   capture ~10 real free-form message fixtures for the interpreter. Confirm **Message Content Intent
-   ON for both bots** (preflight can't check it).
-2. **Resolve pnpm drift** (`edmini-4sw`) → add `@supabase/supabase-js`.
-3. **Build chain:** `edmini-yak` (Supabase client binding — DB + schema already live) → `n12`
-   (Discord transport) → `2y7` (bus worker) → `dze` (LLM interpreter) → `fw5` (voice rewire).
+1. **`edmini-yak` (IN PROGRESS)** — Supabase ledger client binding on `src/lib/ledger.ts`'s pure
+   core: `createClient` + `append`/`snapshot`/`subscribe`. DB + schema + `@supabase/supabase-js` all
+   ready. Needs the anon/service keys wired (fetch via Management API) + an RLS stance (v1: likely
+   RLS off / service-role server-side, anon for browser subscribe).
+2. **Then the build chain:** `n12` (Discord transport — outbound NL + envelope contract) → `2y7`
+   (always-on bus worker: gateway listener → ledger) → `dze` (LLM interpreter, marker-deterministic
+   + fallback; fixtures ready) → `fw5` (voice rewire: lean 3-phase, one active run).
 
 ## Gotchas / decisions
 - **Discord bots cannot create servers** (`code 20001`). You create/pick one; bootstrap auto-detects
