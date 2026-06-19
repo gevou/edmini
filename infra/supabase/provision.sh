@@ -52,8 +52,17 @@ for _ in $(seq 1 60); do
   sleep 10
 done
 
-# Session-pooler connection string (IPv4-friendly; port 5432 = session mode, needed for DDL).
-DBURL="postgresql://postgres.${REF}:${PW}@aws-0-${REGION}.pooler.supabase.com:5432/postgres"
+# Fetch the REAL pooler host/port/user from the Management API — the subdomain is not always
+# aws-0-<region> (this project's is aws-1-…), so constructing it is unreliable. Fall back if needed.
+pooler="$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$REF/config/database/pooler" 2>/dev/null || true)"
+PHOST="$(printf '%s' "$pooler" | jq -r '.[0].db_host // empty' 2>/dev/null || true)"
+PPORT="$(printf '%s' "$pooler" | jq -r '.[0].db_port // empty' 2>/dev/null || true)"
+PUSER="$(printf '%s' "$pooler" | jq -r '.[0].db_user // empty' 2>/dev/null || true)"
+if [ -n "$PHOST" ] && [ -n "$PUSER" ]; then
+  DBURL="postgresql://${PUSER}:${PW}@${PHOST}:${PPORT:-6543}/postgres"
+else
+  DBURL="postgresql://postgres.${REF}:${PW}@aws-0-${REGION}.pooler.supabase.com:5432/postgres"
+fi
 
 upsert_env "$ENVF" SUPABASE_PROJECT_REF "$REF"
 upsert_env "$ENVF" SUPABASE_URL "https://${REF}.supabase.co"
