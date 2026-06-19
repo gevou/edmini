@@ -43,7 +43,10 @@ awk -v s="$MARK_START" -v e="$MARK_END" '
   cat "$tmp"
   echo "$MARK_START"
   echo "DISCORD_BOT_TOKEN=$DISCORD_BOT_TOKEN"
-  echo "DISCORD_ALLOW_BOTS=$DISCORD_ALLOW_BOTS"
+  # Authorization is ENV-gated in Hermes (os.getenv), NOT config.yaml. 'all' (not 'true') is required
+  # to authorize bot senders; allow-all-users authorizes humans on this dedicated server.
+  echo "DISCORD_ALLOW_BOTS=all"
+  echo "DISCORD_ALLOW_ALL_USERS=true"
   echo "DISCORD_HOME_CHANNEL_NAME=$EDMINI_BUS_CHANNEL"
   [ -n "${EDMINI_BUS_CHANNEL_ID:-}" ] && echo "DISCORD_HOME_CHANNEL=$EDMINI_BUS_CHANNEL_ID"
   echo "DISCORD_ALLOWED_CHANNELS=$CHANNEL_REF"
@@ -60,11 +63,10 @@ echo "• Wrote edmini-managed Discord block to $ENV_FILE (bus channel: #$EDMINI
 hermes config set discord.require_mention false >/dev/null 2>&1 || true
 hermes config set discord.free_response_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
 hermes config set discord.allowed_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
-# Hermes also gates by USER: unauthorized senders get a ✓ react but no reply. On a DEDICATED
-# project server, allow everyone (incl. the edmini bot + you). For a SHARED server, prefer
-# `hermes config set discord.allowed_users "<id>,<id>"` with the edmini bot + your user id instead.
-hermes config set discord.allow_all_users true >/dev/null 2>&1 || true
-echo "• Set discord.{require_mention=false, free_response_channels, allowed_channels, allow_all_users} in config.yaml"
+# NOTE: user authorization is handled by the ENV vars in the managed block above
+# (DISCORD_ALLOW_ALL_USERS / DISCORD_ALLOW_BOTS=all), NOT config.yaml. For a SHARED server, replace
+# DISCORD_ALLOW_ALL_USERS with DISCORD_ALLOWED_USERS="<your-id>,<edmini-bot-id>" in the block above.
+echo "• Set discord.{require_mention=false, free_response_channels, allowed_channels} in config.yaml"
 
 # Restart the gateway so it picks up the new platform config.
 echo "• Restarting Hermes gateway…"
