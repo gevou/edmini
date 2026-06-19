@@ -44,14 +44,21 @@ done; tonight was foundations + reproducible infra + live provisioning.
   `⏳ Still working…`=heartbeat (~180s), `⚠️`=run_failed, plain=run_output. Fixtures:
   `src/lib/bus/__fixtures__/hermes-messages.json`. Hermes is single-task (validates one-active-run).
 
+### Inbound + outbound bus DONE (2026-06-19)
+- `edmini-yak` ✓ ledger client (`src/lib/ledger-supabase.ts`), `edmini-n12` ✓ transport
+  (`src/lib/bus/transport.ts` + `discord-transport.ts`), `edmini-dze` ✓ interpreter
+  (`src/lib/bus/interpret.ts`), `edmini-2y7` ✓ worker (`worker/index.ts`, `pnpm worker`). All
+  live-verified (see journal). 56 unit tests, tsc clean. Deps: `@supabase/supabase-js`, `discord.js`;
+  pnpm pinned 9.15.9 via corepack (use `corepack pnpm`).
+
 ## Next steps (in order)
-1. **`edmini-yak` (IN PROGRESS)** — Supabase ledger client binding on `src/lib/ledger.ts`'s pure
-   core: `createClient` + `append`/`snapshot`/`subscribe`. DB + schema + `@supabase/supabase-js` all
-   ready. Needs the anon/service keys wired (fetch via Management API) + an RLS stance (v1: likely
-   RLS off / service-role server-side, anon for browser subscribe).
-2. **Then the build chain:** `n12` (Discord transport — outbound NL + envelope contract) → `2y7`
-   (always-on bus worker: gateway listener → ledger) → `dze` (LLM interpreter, marker-deterministic
-   + fallback; fixtures ready) → `fw5` (voice rewire: lean 3-phase, one active run).
+1. **`edmini-oys`** — bus run-correlation: Hermes replies under its own id, not threaded from the
+   dispatch, so a reply isn't linked to its task. Likely fix: edmini creates a thread per task and
+   posts the instruction into it (verify Hermes replies in edmini-created threads), or single-active-
+   run + time. Decide as part of fw5.
+2. **`edmini-fw5`** — voice layer rewire (lean 3-phase, one active run): repoint the OpenAI Realtime
+   loop to emit outbound envelopes via the transport and surface ledger events (Supabase Realtime)
+   into the live session. Last build task; closes v1.
 
 ## Gotchas / decisions
 - **Discord bots cannot create servers** (`code 20001`). You create/pick one; bootstrap auto-detects

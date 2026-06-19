@@ -19,6 +19,56 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — Bus build: ledger client, transport, interpreter, worker (yak/n12/dze/2y7)
+
+Built and live-verified the v1 data path (voice app/worker ⇄ Discord bus ⇄ Hermes, Supabase ledger
+as system of record). Inbound half complete.
+
+**What changed**
+- `src/lib/ledger-supabase.ts` (yak): `createLedger(client)` + `ledgerFromEnv()` — append/snapshot/
+  subscribe over the pure core in `src/lib/ledger.ts`. Commit `a935e2d`.
+- `src/lib/bus/transport.ts` + `discord-transport.ts` (n12): `BusTransport` (dispatch/answer/cancel)
+  + Discord REST outbound as the edmini bot. Commit `c68d25d`.
+- `src/lib/bus/interpret.ts` (dze): marker-deterministic + LLM-fallback classifier. Commit `2367a24`.
+- `worker/index.ts` (2y7): always-on discord.js gateway → interpret → ledger. `pnpm worker`. `42c5547`.
+- deps: `@supabase/supabase-js` 2.108.2, `discord.js` 14.26.4; pnpm pinned 9.15.9 via corepack (4sw).
+
+**Decisions**
+- Interpreter is marker-first (Hermes emoji taxonomy), LLM only for plain text. Heartbeats (⏳) → `ignore`.
+- The worker is the single ledger tap (logs ALL crossings incl. edmini's own); the transport only
+  posts. Matches §0 (every happening → a ledger event).
+- `serviceRole` key server-side (worker/API), anon for browser subscribe.
+
+**Diagram + interpreter markers**
+```mermaid
+flowchart LR
+  VA[Voice app] -- "dispatch/answer/cancel (REST)" --> D{{#edmini-bus}}
+  H[Hermes] <-- messages --> D
+  W[Bus worker: gateway + interpret] -- reads --> D
+  W -- append events --> L[(Supabase ledger)]
+  L -. Realtime .-> VA
+```
+`❓`→run_blocked · `⏳`→ignore · `⚠️`/shutdown→run_failed · `online —`→run_started · plain→LLM (default run_output).
+
+**Verification**
+- tsc clean; 56 unit tests (envelope, ledger, ledger-supabase, transport, interpret).
+- Live: ledger append/snapshot/projectRuns vs real DB; transport dispatch → real Discord message;
+  worker E2E → dispatched "what is 6×7?", Hermes replied "42", worker interpreted `run_output`,
+  ledger rows confirmed (`harness/discord_message` + `harness/run_output`).
+
+**Gotchas**
+- Discord requires a `DiscordBot (...)` User-Agent or Cloudflare returns 403/1010.
+- pnpm 8-on-PATH vs lockfile-9/store-10 → corepack `pnpm@9` (`packageManager` pinned).
+- `SUPABASE_DB_URL` lives in `infra/supabase/project.env` (not `.env.local`) — empty var made psql hit local PG.
+- Run-correlation: Hermes replies under its own message id, not threaded from the dispatch, so a reply
+  isn't linked to its task (dispatch `…023…` vs reply `…057…`). Filed `edmini-oys`.
+
+**Open / next**
+- `edmini-oys`: run-correlation (likely edmini-creates-thread, or single-active-run + time).
+- `edmini-fw5`: voice rewire (lean 3-phase, one active run) — consumes the ledger feed.
+
+---
+
 ### 2026-06-19 — The bus that wouldn't talk: three gates and a marker taxonomy
 
 *The ledger and the Discord bus were both "provisioned" and green — yet Hermes answered every
