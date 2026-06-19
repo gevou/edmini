@@ -21,15 +21,24 @@ describe("createDiscordTransport", () => {
 
   const t = () => createDiscordTransport({ token: "TOK", channelId: "chan-1" });
 
-  it("dispatch posts the instruction to the channel with the DiscordBot UA + bot auth; runId=messageId", async () => {
+  it("dispatch creates a thread (runId) then posts the instruction into it, with UA + bot auth", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "thread-1" }) }) // create thread
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "msg-9" }) }); // post in thread
     const res = await t().dispatch("schedule the standup");
-    expect(res).toEqual({ runId: "msg-123", messageId: "msg-123" });
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://discord.com/api/v10/channels/chan-1/messages");
-    expect(init.method).toBe("POST");
-    expect(init.headers["User-Agent"]).toMatch(/^DiscordBot /);
-    expect(init.headers.Authorization).toBe("Bot TOK");
-    expect(JSON.parse(init.body)).toEqual({ content: "schedule the standup" });
+    expect(res).toEqual({ runId: "thread-1", messageId: "msg-9" });
+
+    const [tUrl, tInit] = fetchMock.mock.calls[0];
+    expect(tUrl).toBe("https://discord.com/api/v10/channels/chan-1/threads");
+    expect(tInit.headers["User-Agent"]).toMatch(/^DiscordBot /);
+    expect(tInit.headers.Authorization).toBe("Bot TOK");
+    const tBody = JSON.parse(tInit.body);
+    expect(tBody.name).toBe("schedule the standup");
+    expect(tBody.type).toBe(11);
+
+    const [mUrl, mInit] = fetchMock.mock.calls[1];
+    expect(mUrl).toBe("https://discord.com/api/v10/channels/thread-1/messages");
+    expect(JSON.parse(mInit.body)).toEqual({ content: "schedule the standup" });
   });
 
   it("answer posts into the run's thread (runId is the channel)", async () => {

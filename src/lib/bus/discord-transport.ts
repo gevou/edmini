@@ -2,14 +2,18 @@
  * Discord implementation of the bus transport (outbound: edmini -> harness). Posts via the Discord
  * REST API as the edmini bot. v1 transport per docs/architecture/edmini-v1-design.md §4.
  *
- * NOTE: Discord requires a `DiscordBot (...)` User-Agent — without it, Cloudflare returns 403/1010.
- * A run is keyed by the dispatch message id; Discord threads-from-a-message share that id, so
- * answer()/cancel() post into the thread channel addressed by runId.
+ * Run correlation (edmini-oys): dispatch() creates a THREAD per task and posts the instruction into
+ * it; the thread id is the run_id. Verified live that Hermes replies inside an edmini-created thread,
+ * so every reply lands under the same run_id. answer()/cancel() post into that thread.
+ *
+ * NOTE: Discord requires a `DiscordBot (...)` User-Agent — without it Cloudflare returns 403/1010.
  */
 import { renderOutbound, type BusTransport, type DispatchResult } from "./transport";
 
 const API = "https://discord.com/api/v10";
 const USER_AGENT = "DiscordBot (https://github.com/gevou/edmini, 0.1)";
+const PUBLIC_THREAD = 11; // Discord channel type
+const AUTO_ARCHIVE_MIN = 1440; // 24h
 
 export interface DiscordTransportConfig {
   token: string; // the edmini bot token
@@ -17,26 +21,34 @@ export interface DiscordTransportConfig {
 }
 
 export function createDiscordTransport(cfg: DiscordTransportConfig): BusTransport {
-  async function postMessage(channelId: string, content: string): Promise<{ id: string }> {
-    const res = await fetch(`${API}/channels/${channelId}/messages`, {
+  async function req<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${API}${path}`, {
       method: "POST",
       headers: {
         Authorization: `Bot ${cfg.token}`,
         "Content-Type": "application/json",
         "User-Agent": USER_AGENT,
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      throw new Error(`Discord post failed (${res.status}): ${await res.text()}`);
-    }
-    return (await res.json()) as { id: string };
+    if (!res.ok) throw new Error(`Discord POST ${path} failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as T;
   }
+
+  const postMessage = (channelId: string, content: string) =>
+    req<{ id: string }>(`/channels/${channelId}/messages`, { content });
 
   return {
     async dispatch(instruction): Promise<DispatchResult> {
-      const msg = await postMessage(cfg.channelId, renderOutbound("task_dispatch", { instruction }));
-      return { runId: msg.id, messageId: msg.id };
+      const name = (instruction.replace(/\s+/g, " ").trim().slice(0, 90)) || "edmini task";
+      const thread = await req<{ id: string }>(`/channels/${cfg.channelId}/threads`, {
+        name,
+        type: PUBLIC_THREAD,
+        auto_archive_duration: AUTO_ARCHIVE_MIN,
+      });
+      const msg = await postMessage(thread.id, renderOutbound("task_dispatch", { instruction }));
+      // run_id = thread id; Hermes replies inside this thread (see edmini-oys).
+      return { runId: thread.id, messageId: msg.id };
     },
     async answer(runId, text): Promise<void> {
       await postMessage(runId, renderOutbound("answer", { text }));
