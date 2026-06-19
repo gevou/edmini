@@ -31,19 +31,20 @@ fi
 TODAY=$(date '+%Y-%m-%d')
 BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
-ENTRY=$(claude -p "You are appending ONE entry to PROJECT_JOURNAL.md for the project 'edmini', a conversational voice agent that supervises autonomous executors.
+ENTRY=$(claude -p "You are appending ONE entry to PROJECT_JOURNAL.md for the project 'edmini' (a voice agent that supervises autonomous executors over a Discord bus + Supabase ledger).
 
-This journal is PUBLICATION-GRADE NARRATIVE source material for longer-form writing — articles for Towards Data Science (TDS) and Towards AI (TAI), and scientific write-ups. Do NOT use a devlog/changelog format: no 'Branch', no 'Commits', no terse bullet stubs, no file lists. Write flowing, analytical prose suited to an essay or a paper's discussion section: explain the problem, the options weighed, the decision, and the reasoning — including the roads not taken. Make it quotable as written.
+Write a PRAGMATIC, FACTUAL engineering-log entry — detail over style. Capture raw material (what changed, why, how it was verified) so it can be repurposed later. Do NOT dramatize, editorialize, or write essay/narrative prose. Neutral tone, dense with specifics. INCLUDE concrete artifacts: file paths, key code snippets (in fenced code blocks), commands, results/output, and small mermaid diagrams for architecture/flow/data when they help. Prefer structured sections + bullets over paragraphs.
 
-From the session transcript below, write a single entry. Output ONLY the entry, no code fences, beginning with this exact heading line and ending with a horizontal rule:
+From the session transcript below, write a single entry as Markdown — use fenced blocks for code/mermaid, but do NOT wrap the whole entry in one code fence. Begin with this exact heading and use whichever sections apply:
 
-### $TODAY — <evocative title>
+### $TODAY — <concise factual title>
 
-*<one- or two-sentence italic dek summarising the entry>*
-
-<several short paragraphs of narrative prose>
-
-Optionally close with a short '**Open questions**' paragraph and an '**Angles worth publishing**' line naming candidate article framings. If a diagram genuinely aids understanding, include a small mermaid block.
+- **What changed** — files added/modified, components, commit hashes.
+- **Decisions** — choice + brief factual reason + alternatives considered.
+- **Code / diagrams** — key snippets and/or a small mermaid diagram.
+- **Verification** — commands run + results (tests, smoke, live checks).
+- **Gotchas** — concrete issues + fixes.
+- **Open / next** — what's pending.
 
 ---
 

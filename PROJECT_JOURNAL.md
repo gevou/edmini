@@ -1,11 +1,12 @@
 # edmini — Development Journal
 
-> A working journal for **edmini**, a conversational voice agent that supervises autonomous
-> executors. It is written as **narrative source material** for longer-form pieces — articles for
-> *Towards Data Science* and *Towards AI*, and, where the ideas warrant it, scientific write-ups —
-> so it favours argument and rationale over changelogs. Entries are dated, newest first, and meant
-> to be quotable more or less as written. (Mechanical file-change logs live in
-> `docs/SESSION_SUMMARIES.md`; standalone story beats in `docs/SESSION_STORIES.md`.)
+> A working journal for **edmini**, a voice agent that supervises autonomous executors. It is a
+> **pragmatic, detail-first capture** of what changed, why, the decisions + alternatives, and how
+> things were verified — including file paths, code snippets, commands, results, and small diagrams.
+> Neutral tone; detail over style, so the content can be repurposed later (blog/book/etc.) rather
+> than pre-styled here. Entries are dated, newest first. (Style updated 2026-06-19 from the earlier
+> "narrative/publication" framing — older entries below kept as-is. Mechanical file-change logs:
+> `docs/SESSION_SUMMARIES.md`.)
 
 ## Project overview
 
