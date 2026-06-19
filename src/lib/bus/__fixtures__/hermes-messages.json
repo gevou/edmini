@@ -30,7 +30,7 @@
   {
     "prompt": "Give me a two-line poem about debugging.",
     "hermes": "⏳ Still working... (3 min elapsed — iteration 1/90, running: clarify)",
-    "kind": "run_started",
+    "kind": "ignore",
     "marker": "⏳ Still working...",
     "note": "Progress heartbeat, NOT a result. Hermes emits these every gateway_notify_interval (~180s) while a run is active; embeds elapsed time, iteration n/max_turns, and the running tool. Treat as in-progress/keepalive. Here it shows the session was still stuck on the prior 'clarify' run."
   }
