@@ -19,6 +19,23 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — Run correlation fixed + outbound bus API (oys, fw5 pt1)
+
+- **oys (run correlation):** `discord-transport.dispatch()` now creates a Discord PUBLIC_THREAD per
+  task and posts the instruction into it; `runId` = thread id. Experiment confirmed Hermes replies
+  *inside* an edmini-created thread (`9 × 9 = 81` in-thread, 6s). E2E smoke: dispatch +
+  `harness/discord_message` + interpreted `harness/run_output` all under one `runId`. Commit `4143dfd`.
+- **fw5 pt1 — outbound API:** `src/app/api/bus/route.ts` — `POST /api/bus {action: dispatch|answer|
+  cancel}` → Discord transport + ledger log (returns `runId` on dispatch). 4 route tests (mocked
+  transport+ledger). Commit `ab5f3c4`.
+- Verification: tsc clean, 60 unit tests, `next build` passes.
+
+**Next (fw5 pt2 — the v1 capstone):** rewire `VoiceAgent.tsx` Realtime tools → `/api/bus` + track
+`activeRunId`; inbound "Narrate" via Supabase Realtime (browser) injecting active-run ledger events
+into the live session; then a manual voice test.
+
+---
+
 ### 2026-06-19 — Bus build: ledger client, transport, interpreter, worker (yak/n12/dze/2y7)
 
 Built and live-verified the v1 data path (voice app/worker ⇄ Discord bus ⇄ Hermes, Supabase ledger

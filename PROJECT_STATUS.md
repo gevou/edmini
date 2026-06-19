@@ -51,14 +51,30 @@ done; tonight was foundations + reproducible infra + live provisioning.
   live-verified (see journal). 56 unit tests, tsc clean. Deps: `@supabase/supabase-js`, `discord.js`;
   pnpm pinned 9.15.9 via corepack (use `corepack pnpm`).
 
-## Next steps (in order)
-1. **`edmini-oys`** — bus run-correlation: Hermes replies under its own id, not threaded from the
-   dispatch, so a reply isn't linked to its task. Likely fix: edmini creates a thread per task and
-   posts the instruction into it (verify Hermes replies in edmini-created threads), or single-active-
-   run + time. Decide as part of fw5.
-2. **`edmini-fw5`** — voice layer rewire (lean 3-phase, one active run): repoint the OpenAI Realtime
-   loop to emit outbound envelopes via the transport and surface ledger events (Supabase Realtime)
-   into the live session. Last build task; closes v1.
+### oys + fw5 part 1 DONE (2026-06-19)
+- `edmini-oys` ✓ run-correlation: `dispatch()` creates a Discord thread per task → `runId` = thread
+  id; Hermes replies in-thread; verified dispatch + reply + interpreted event share one `runId`.
+- `edmini-fw5` part 1 ✓ outbound API: `src/app/api/bus/route.ts` (`POST /api/bus` dispatch/answer/
+  cancel → transport + ledger). 60 tests, tsc clean, build passes.
+
+## NEXT SESSION — start here: `edmini-fw5` part 2 (voice rewire, the v1 capstone)
+The whole backend (bus + ledger + worker + interpreter + outbound API) is built & live-verified.
+Only the VoiceAgent client rewire remains. Three steps, then v1 is done:
+1. **Realtime tools** — in `src/app/api/session/route.ts` replace `classify_and_route` /
+   `cancel_pending_action` with `delegate_task(instruction)` / `answer_run(text)` / `cancel_run()`;
+   in `src/components/VoiceAgent.tsx` make `dispatchToolCall` POST to `/api/bus` and track
+   `activeRunId` (one active run; `delegate_task` sets it from the returned `runId`).
+2. **Narrate (inbound)** — in `VoiceAgent.tsx` subscribe the browser to Supabase Realtime
+   (`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, both in `.env.local`) using
+   `createLedger().subscribe()`; on events for `activeRunId` with kind `run_blocked` / `run_output`
+   / `run_failed`, inject into the live session via `conversation.item.create` + `response.create`
+   (reuse the `sendToolResult` data-channel pattern) so edmini speaks them.
+3. **Manual voice test** — run `pnpm dev` (app) + `pnpm worker` (bus worker) + `hermes gateway` (or
+   it's the launchd service). Speak → edmini `delegate_task` → Discord thread → Hermes replies →
+   worker → ledger → Realtime → edmini speaks it. (Hermes is single-task; expect ~6–60s replies.)
+
+To run the bus worker: `pnpm worker`. To re-provision infra if needed: `./infra/up.sh` (1Password
+must be unlocked). Ledger queries: `SUPABASE_DB_URL` is in `infra/supabase/project.env` (not .env.local).
 
 ## Gotchas / decisions
 - **Discord bots cannot create servers** (`code 20001`). You create/pick one; bootstrap auto-detects
