@@ -22,23 +22,23 @@ done; tonight was foundations + reproducible infra + live provisioning.
   `1517061705967079475`), `#edmini-bus` created (`1517068895578620026`), Hermes configured (real
   token in `~/.hermes/.env`, gateway restarted), `hermes send` lands in the channel.
 
-### Blocked / pending
-- **Supabase ledger** (`edmini-yak`, `edmini-335`): project creation is disabled platform-wide
-  (Supabase incident). API still returns "Project creation is currently disabled" even after the
-  dashboard banner cleared. **Resume:** re-run `./infra/up.sh` once creation is restored (or create
-  `edmini-ledger` in the dashboard and paste the Session-pooler URI into
-  `infra/supabase/project.env` → `SUPABASE_DB_URL`, then `./infra/supabase/apply.sh`). Idempotent;
-  DB password already persisted in `project.env`.
+### Infra COMPLETE (`edmini-335` ✓, 2026-06-19)
+- **Supabase ledger LIVE:** project `edmini-ledger` (ref `ljrefeouubyunxjcujma`) created + healthy;
+  `0001_ledger.sql` applied (events table + runs view + no-mutate trigger + realtime publication,
+  all verified); psql connects via the real pooler URL (`aws-1-us-east-1.pooler.supabase.com:6543`,
+  in `project.env`). Lesson: the Supabase outage cleared after a few hours; apply now goes through
+  the **Management API SQL endpoint** (`provision.sh`/`apply.sh` fixed — fetch real pooler host, no
+  more constructed `aws-0` guess).
+- Both halves (Discord bus + Supabase ledger) are up. `preflight.sh` needs the 1Password vault
+  unlocked when run (it re-locks between calls).
 
 ## Next steps (in order)
-1. **Finish provisioning** (`edmini-335`): create the Supabase project (outage permitting) →
-   `./infra/up.sh` → `./infra/preflight.sh`. Confirm **Message Content Intent ON for both bots**
-   (preflight can't check it).
-2. **Harness standup** (`edmini-pmo`): confirm Hermes *reads* `#edmini-bus` after channel discovery;
-   capture ~10 real free-form message fixtures for the interpreter.
-3. **Build chain:** `edmini-yak` (Supabase client binding — needs the pnpm drift `edmini-4sw`
-   resolved to add `@supabase/supabase-js`) → `n12` (Discord transport) → `2y7` (bus worker) →
-   `dze` (LLM interpreter) → `fw5` (voice rewire).
+1. **Harness standup** (`edmini-pmo`): confirm Hermes *reads* `#edmini-bus` after channel discovery;
+   capture ~10 real free-form message fixtures for the interpreter. Confirm **Message Content Intent
+   ON for both bots** (preflight can't check it).
+2. **Resolve pnpm drift** (`edmini-4sw`) → add `@supabase/supabase-js`.
+3. **Build chain:** `edmini-yak` (Supabase client binding — DB + schema already live) → `n12`
+   (Discord transport) → `2y7` (bus worker) → `dze` (LLM interpreter) → `fw5` (voice rewire).
 
 ## Gotchas / decisions
 - **Discord bots cannot create servers** (`code 20001`). You create/pick one; bootstrap auto-detects
