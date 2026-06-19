@@ -60,7 +60,11 @@ echo "• Wrote edmini-managed Discord block to $ENV_FILE (bus channel: #$EDMINI
 hermes config set discord.require_mention false >/dev/null 2>&1 || true
 hermes config set discord.free_response_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
 hermes config set discord.allowed_channels "$CHANNEL_REF" >/dev/null 2>&1 || true
-echo "• Set discord.{require_mention=false, free_response_channels, allowed_channels} in config.yaml"
+# Hermes also gates by USER: unauthorized senders get a ✓ react but no reply. On a DEDICATED
+# project server, allow everyone (incl. the edmini bot + you). For a SHARED server, prefer
+# `hermes config set discord.allowed_users "<id>,<id>"` with the edmini bot + your user id instead.
+hermes config set discord.allow_all_users true >/dev/null 2>&1 || true
+echo "• Set discord.{require_mention=false, free_response_channels, allowed_channels, allow_all_users} in config.yaml"
 
 # Restart the gateway so it picks up the new platform config.
 echo "• Restarting Hermes gateway…"
