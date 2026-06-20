@@ -190,6 +190,9 @@ export default function VoiceAgent() {
   // got stuck true and ALL narration went silent (edmini-9ex live-test failure). Tool results that
   // arrive while a response is active queue here and fire when the current one ends.
   const pendingToolResponsesRef = useRef<Array<() => void>>([]);
+  // True while the next Ed turn is proactive narration (no user utterance), so its transcript turn
+  // renders without a blank user bubble. Set when narration is injected; cleared when the User speaks.
+  const edInitiatedPendingRef = useRef<boolean>(false);
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
   // flight. Only call when responseActiveRef is false.
@@ -221,6 +224,7 @@ export default function VoiceAgent() {
   const injectNarration = useCallback(
     (batch: NarrationBatch) => {
       if (!dcRef.current || dcRef.current.readyState !== "open" || batch.length === 0) return;
+      edInitiatedPendingRef.current = true; // this response is Ed-initiated (no user utterance)
       const lines = batch
         .map((i) => (i.label ? `Run '${i.label}' ${i.text}` : i.text))
         .join(". ");
@@ -480,6 +484,7 @@ export default function VoiceAgent() {
     if (type === "input_audio_buffer.speech_started") {
       setStatus("listening");
       userSpeakingRef.current = true; // never narrate over the User
+      edInitiatedPendingRef.current = false; // the User is speaking → the next turn is theirs
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
     }
     if (type === "input_audio_buffer.speech_stopped") {
@@ -539,9 +544,13 @@ export default function VoiceAgent() {
         } else {
           const newId = ++turnCounterRef.current;
           currentTurnIdRef.current = newId;
+          // Ed-initiated turn (proactive narration) → "" so no user bubble renders; a real user turn
+          // stays null and gets its transcript backfilled.
+          const userText = edInitiatedPendingRef.current ? "" : null;
+          edInitiatedPendingRef.current = false;
           setTurns((prev) => [
             ...prev,
-            { id: newId, userText: null, edText: delta, edStreaming: true },
+            { id: newId, userText, edText: delta, edStreaming: true },
           ]);
         }
       }
@@ -816,15 +825,18 @@ export default function VoiceAgent() {
         ) : (
           turns.map((turn) => (
             <Fragment key={turn.id}>
-              {/* User bubble — always first, placeholder until transcript arrives */}
-              <div className="flex justify-end">
-                <div
-                  className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-br-sm text-white ${turn.userText === null ? "opacity-40" : ""}`}
-                  style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.25)" }}
-                >
-                  {turn.userText ?? "…"}
+              {/* User bubble — always first; placeholder until transcript arrives. Ed-initiated
+                  narration turns carry userText="" and render NO user bubble. */}
+              {turn.userText !== "" && (
+                <div className="flex justify-end">
+                  <div
+                    className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-br-sm text-white ${turn.userText === null ? "opacity-40" : ""}`}
+                    style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.25)" }}
+                  >
+                    {turn.userText ?? "…"}
+                  </div>
                 </div>
-              </div>
+              )}
               {/* Ed bubble — always second */}
               {(turn.edText || turn.edStreaming) && (
                 <div className="flex justify-start">

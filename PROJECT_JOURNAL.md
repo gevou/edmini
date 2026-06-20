@@ -20,6 +20,24 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — worker cutover to Fly (v1 infra complete) + a UI blank-bubble fix
+
+Moved the always-on bus worker off the Mac onto **Fly** (`edmini-4vi`): app `edmini-bus-worker`
+(machine `d896262f1495d8`, `iad`), `fly deploy` + start, secrets via `fly secrets`, `fly.toml` with no
+`http_service` (it's a gateway worker, no inbound ports). Started it, confirmed `ready as Edmini#0725;
+tapping bus`, then stopped the Mac worker so there's exactly one tap. Verified end-to-end: a prod
+`/api/bus` dispatch ("9×9") flowed Hermes "81" → **Fly** worker → ledger `run_output` (seq 88), a
+single event set (no double-tap). Phone testing now survives the Mac sleeping — v1 infra is complete.
+
+Also fixed the UI bug the user spotted: proactive narration turns showed a **blank "…" user bubble**.
+Cause — every Ed transcript turn was created with `userText: null` (a placeholder awaiting the user's
+backfilled transcript), but a narration turn has no user utterance, so the placeholder was permanent.
+Fix: an `edInitiatedPendingRef` set when narration is injected (cleared when the User speaks); the
+resulting turn gets `userText: ""`, and the render skips the user bubble for `""` turns. Normal turns
+(null → backfilled) are unchanged.
+
+---
+
 ### 2026-06-20 — v1 concurrent voice capstone VERIFIED, with Ed's own words as proof
 
 The payoff, finally legible. On a clean load, a two-run test, read straight from the ledger

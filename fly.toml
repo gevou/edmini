@@ -1,0 +1,12 @@
+# Fly config for the edmini bus worker (edmini-4vi).
+# A background worker: no [http_service], no ports — it holds the Discord gateway and writes the
+# ledger. One always-on machine; Fly restarts it on exit. Secrets via `fly secrets set`.
+app = "edmini-bus-worker"
+primary_region = "iad"  # us-east, near the Supabase project (us-east-1)
+
+[build]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

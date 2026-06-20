@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.beads
+.claude
+infra
+.vercel
+*.log
+.env*
+.understand-anything
+mission-control.html
+docs

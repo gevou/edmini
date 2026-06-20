@@ -2208,3 +2208,21 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 21:54 — edmini / main
+
+**Last commit:** `fb004f4 docs: v1 concurrent voice capstone verified end-to-end`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
