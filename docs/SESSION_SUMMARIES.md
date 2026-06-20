@@ -2190,3 +2190,21 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 21:48 — edmini / main
+
+**Last commit:** `fe18d90 fix(4mf): remove the service worker entirely (self-unregistering kill-switch)`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

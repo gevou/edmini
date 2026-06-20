@@ -1,8 +1,20 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. fw5 pt2 rewire landed `fcaf456`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `fe18d90`. Beads synced to the Dolt remote
 (`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
+
+## ✅ v1 VOICE CAPSTONE VERIFIED end-to-end (2026-06-20)
+`edmini-9ex` + `edmini-rv9` → `verified`. Live prod test: two concurrent runs ('20s' 20×20, '30s'
+15+17) → Ed narrated BOTH **by label**, in order, no silence/overlap; full conversation (incl. Ed's
+`voice_output`) durable in the ledger. Concurrent narration + response.create serialization confirmed.
+Also resolved this session: **service worker REMOVED entirely** (`edmini-4mf`) — it was the root cause
+of all "stale bundle" incidents (cached HTML → ChunkLoadError, survived close-reopen); replaced with a
+self-unregistering kill-switch + `SwCleanup`. Build-id in header (`edmini-0t0`) + git-push-only deploys
+(no hash flapping) + inline ChunkLoadError guard. Prod live + public at https://edmini.vercel.app.
+REMAINING for v1: persistent worker host (`edmini-4vi`, Fly app `edmini-bus-worker` created + secrets
+staged, parked — needs `fly deploy` + Mac-worker cutover). Backlog: `edmini-69p` (partial-delivery),
+`edmini-qo3` (input addressivity).
 
 ## 9ex concurrent run narration — IMPLEMENTED, code-complete (2026-06-19)
 `edmini-9ex` closed + `needs-verification`. Lifted the one-active-run cap → **N concurrent runs**.

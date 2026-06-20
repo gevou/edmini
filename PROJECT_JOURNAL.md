@@ -20,6 +20,39 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — v1 concurrent voice capstone VERIFIED, with Ed's own words as proof
+
+The payoff, finally legible. On a clean load, a two-run test, read straight from the ledger
+(`voice_output` is the rv9 edmini→User crossing, so I no longer have to ask what Ed said):
+
+- seq 71 `task_dispatch [20s]` "Calculate 20 by 20" · seq 74 `task_dispatch [30s]` "Calculate 15 plus 17"
+- seq 76 edmini `voice_output` "On it. On it."
+- seq 77–80 harness replies "15 + 17 = 32" and "20 × 20 = 400" → both `run_output` (~1s apart, concurrent)
+- seq 81 edmini `voice_output` **"The result for the '30s' task is in: 15 plus 17 equals 32."**
+- seq 82 edmini `voice_output` **"And the '20s' task is done too: 20 times 20 equals 400."**
+- seq 83 edmini `voice_output` "Great, both calculations are complete…"
+
+So everything fits: **N concurrent runs, narrated by label, in order, no silence and no talking-over.**
+The `response.create` serialization (`fireResponse`/`pendingToolResponses`/`onResponseEnded`) earned
+its keep — two near-simultaneous tool results spoke cleanly instead of one stranding the channel.
+`edmini-9ex` and `edmini-rv9` → `verified`. The whole conversation — user utterance, dispatch,
+harness reply, *and Ed's spoken words* — is now durable in the ledger; all three crossing directions
+recorded, the §0 thesis honored end to end.
+
+Getting here meant clearing a landmine: a **service worker** ([`public/sw.js`](public/sw.js)) added
+for PWA/offline-shell was serving `cached ?? fresh` for the HTML document, pinning browsers to old
+HTML that referenced replaced `/_next` chunk hashes → `ChunkLoadError`, and surviving close-and-reopen.
+It wore three masks today (unknown-tool, missing voice_output, client-side exception) before the user
+asked the right question — *"what was the purpose of the worker to start with?"* — and the honest
+answer was "almost nothing, for an online-only app." So we **removed it entirely**: a self-unregistering
+kill-switch SW (purges caches, unregisters, reloads tabs) + `SwCleanup` (registers nothing); PWA
+install survives via the manifest, which never needed the SW. Also stopped double-deploying
+(git-push only — CLI `vercel --prod` was creating hash-flapping parallel builds) and added an inline
+`ChunkLoadError` auto-reload guard. The build id in the header (`edmini-0t0`) ended the "which bundle
+are you on?" guessing that cost us several cycles. Net: zero caching layer, nothing to go stale.
+
+---
+
 ### 2026-06-19 — a misdiagnosis the user caught: "Ed was silent" was a stale bundle, not a bug
 
 A clean lesson in not over-reading logs. After a 9ex test showed two runs dispatched + answered but
