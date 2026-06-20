@@ -2394,3 +2394,36 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 23:38 — edmini / main
+
+**Last commit:** `79fe966 fix(5ze): voice prompt — don't claim completion before the run is confirmed done`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-20 00:06 — edmini / main
+
+**Last commit:** `79fe966 fix(5ze): voice prompt — don't claim completion before the run is confirmed done`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

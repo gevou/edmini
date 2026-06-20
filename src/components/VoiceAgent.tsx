@@ -34,6 +34,7 @@ interface Turn {
   edText: string;
   edStreaming: boolean;
   spokenIndex?: number; // conservative spoken-so-far cursor while Ed narrates this turn (mb0)
+  ts: number; // ms epoch when this turn was created (for the UI timestamp)
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -41,6 +42,10 @@ type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 const STORAGE_KEY = "ed_openai_key";
 // Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
+
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
 
 function MicIcon() {
   return (
@@ -280,7 +285,10 @@ export default function VoiceAgent() {
   }, [fireResponse, tryDrain]);
 
   // An interpreted harness event for one of our runs → enqueue a narration item (by label).
-  // run_done/run_failed close the run out of the registry; everything else updates its status.
+  // The run is NOT evicted on run_done/run_failed: the harness streams many messages per task (intent,
+  // tool steps, then the real "Done!" — often with a follow-up question), and an early/false run_done
+  // would otherwise drop every later event (including a genuine question). Runs are evicted only on
+  // cancel_run or session end. We just track status. See edmini-5ze / the interpreter follow-up.
   const handleLedgerEvent = useCallback(
     (event: LedgerEvent) => {
       if (event.source !== "harness" || !event.runId) return;
@@ -295,11 +303,16 @@ export default function VoiceAgent() {
         label: `Run '${label}': ${event.kind}`,
         detail: text,
       });
-      if (event.kind === "run_done" || event.kind === "run_failed") {
-        registry.remove(event.runId);
-      } else {
-        registry.setStatus(event.runId, event.kind === "run_blocked" ? "blocked" : "active");
-      }
+      registry.setStatus(
+        event.runId,
+        event.kind === "run_failed"
+          ? "failed"
+          : event.kind === "run_done"
+            ? "done"
+            : event.kind === "run_blocked"
+              ? "blocked"
+              : "active",
+      );
       narrationQueueRef.current!.enqueue({ priority: spec.priority, kind: event.kind, text, label });
       tryDrain();
     },
@@ -602,7 +615,7 @@ export default function VoiceAgent() {
           edInitiatedPendingRef.current = false;
           setTurns((prev) => [
             ...prev,
-            { id: newId, userText, edText: delta, edStreaming: true },
+            { id: newId, userText, edText: delta, edStreaming: true, ts: Date.now() },
           ]);
         }
       }
@@ -651,7 +664,7 @@ export default function VoiceAgent() {
           }
           // No unmatched turn — create standalone user turn
           const newId = ++turnCounterRef.current;
-          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false }];
+          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now() }];
         });
         const edText = pendingEdTextRef.current;
         if (edText) {
@@ -885,18 +898,19 @@ export default function VoiceAgent() {
               {/* User bubble — always first; placeholder until transcript arrives. Ed-initiated
                   narration turns carry userText="" and render NO user bubble. */}
               {turn.userText !== "" && (
-                <div className="flex justify-end">
+                <div className="flex flex-col items-end">
                   <div
                     className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-br-sm text-white ${turn.userText === null ? "opacity-40" : ""}`}
                     style={{ background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.25)" }}
                   >
                     {turn.userText ?? "…"}
                   </div>
+                  <span className="text-[10px] text-white/20 mt-1 mr-1 tabular-nums">{fmtTime(turn.ts)}</span>
                 </div>
               )}
               {/* Ed bubble — always second */}
               {(turn.edText || turn.edStreaming) && (
-                <div className="flex justify-start">
+                <div className="flex flex-col items-start">
                   <div
                     className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-bl-sm text-white/90 ${turn.edStreaming ? "opacity-60" : ""}`}
                     style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
@@ -913,6 +927,7 @@ export default function VoiceAgent() {
                       <span className="inline-block w-1 h-3 ml-1 bg-current rounded-full align-middle" style={{ animation: "pulse 1s ease-in-out infinite" }} />
                     )}
                   </div>
+                  <span className="text-[10px] text-white/20 mt-1 ml-1 tabular-nums">{fmtTime(turn.ts)}</span>
                 </div>
               )}
             </Fragment>

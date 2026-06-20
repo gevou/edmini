@@ -5,6 +5,30 @@ Rough outlines of problems we know we'll need to design, captured so they aren't
 
 ---
 
+## Run lifecycle: is "tool call" the wrong frame for a long-running agent run?
+
+**Status:** open question (2026-06-20)
+
+The voice model invokes `delegate_task`/`answer_run`/`cancel_run` as **tool calls**, and a run can span
+minutes and many messages — which feels like a mismatch. But note: the tool call is only the **dispatch**
+(it posts to Discord and returns a `runId` in <1s); the long-running part flows back **asynchronously**
+via the ledger → Supabase Realtime → narration. So the model never blocks on the run, and duration was
+*not* the cause of the bugs we hit (those were lifecycle eviction + interpreter misclassification — see
+below). What a "run" really is: a **stream** of harness messages (intent → tool steps → completion,
+sometimes with a follow-up question), not a single request/response.
+
+**Could Vercel Workflows help?** They'd give durable, resumable *server-side* orchestration of a run as
+explicit steps (dispatch → await events → handle blocked → complete), with retries and resumption — nice
+if run logic grows complex. But durability is already provided by the **ledger** (system of record) + the
+always-on **Fly worker**, so it's not needed for v1. Revisit if run orchestration needs structured
+multi-step logic or server-side state machines. The Workflow SDK is still a dependency (`withWorkflow`);
+v1 doesn't rely on it for runs.
+
+Related (do separately): the interpreter must stop mislabeling **progress** (intent prose, tool-use lines
+like `💻 terminal` / `✍️ write_file` / `📚 skills_list`) as `run_done`, and stop calling a real
+completion-with-a-question anything but `run_blocked`. The lifecycle fix (don't evict a run on `run_done`)
+mitigates the *silence* symptom; the classifier fix mitigates the *over-claim* symptom.
+
 ## Voice-provider flexibility — swap the voice model behind a normalized interface
 
 **Status:** backlog (2026-06-20) · bead `edmini-xct`
