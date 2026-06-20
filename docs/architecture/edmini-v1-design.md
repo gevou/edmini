@@ -226,12 +226,13 @@ bound* (elapsed→chars via a self-calibrating rate, snapped *down* to a word bo
 dimming the not-yet-spoken tail. Pure module `src/lib/voice/narration-progress.ts`
 ([`edmini-mb0`](../superpowers/specs/2026-06-20-narration-progress-tracking-design.md)).
 
-**Partial-delivery recovery** (deferred, [`edmini-69p`](open-problems.md)): on barge-in, re-speak from
-the clause/sentence boundary *at or before* the cursor, **with overlap** — assume *less* was delivered,
-because people repeat themselves when interrupted. This is what makes the inherent fuzziness graceful: a
-wrong estimate just means Ed repeats a few extra words, never drops them. The accurate elapsed-time
-measurement is also what feeds `conversation.item.truncate` so the model's context reflects what was
-actually heard.
+**Partial-delivery recovery** (deferred, [`edmini-69p`](open-problems.md)): on barge-in, **immediately
+queue** the unspoken remainder rather than auto-resuming — the barge may have changed topic, and the user
+may have just *read* the on-screen text. The remainder becomes a pending item in the narration queue,
+re-surfaced *with context* (*"as I was saying earlier about X, …"*) or **dismissed** if the user read it.
+The bias stays conservative (assume *less* was delivered — people repeat when interrupted), and the
+accurately-measured elapsed time feeds `conversation.item.truncate` so the model's own context reflects
+what was actually heard. See [open-problems.md](open-problems.md).
 
 ### 6.2 The voice provider is swappable (don't over-rely on OpenAI Realtime)
 

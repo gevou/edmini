@@ -2226,3 +2226,90 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 22:10 — edmini / main
+
+**Last commit:** `f3bdb41 feat(4vi): worker cutover to Fly + fix(ui): blank user bubble on narration turns`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 22:12 — edmini / main
+
+**Last commit:** `f3bdb41 feat(4vi): worker cutover to Fly + fix(ui): blank user bubble on narration turns`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 22:21 — edmini / main
+
+**Last commit:** `f3bdb41 feat(4vi): worker cutover to Fly + fix(ui): blank user bubble on narration turns`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 22:27 — edmini / main
+
+**Last commit:** `f3bdb41 feat(4vi): worker cutover to Fly + fix(ui): blank user bubble on narration turns`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 22:33 — edmini / main
+
+**Last commit:** `36c9926 docs: narration-progress spec + voice-provider-flexibility principle`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

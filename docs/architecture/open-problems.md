@@ -17,17 +17,29 @@ function-calling format, media-track audio); the pure core (ledger, run-registry
 narration-progress) is already provider-agnostic. Worth extracting when a second provider comes into
 view or the coupling starts to bite — until then, keep new code behind a thin adapter.
 
-## Partial-delivery recovery — re-speak what was interrupted
+## Partial-delivery recovery — queue the interrupted remainder, don't barge back in
 
 **Status:** rough outline (2026-06-20) · bead `edmini-69p`
 
-On barge-in, Ed should re-speak the **not-yet-spoken** part (and overlap a little of what *was* spoken),
-**assuming less was delivered** — because people repeat themselves when interrupted, and our spoken
-position is only an estimate. Builds on the conservative narration cursor (`edmini-mb0`) plus
-`conversation.item.truncate(audio_end_ms)` so the model's context reflects what was actually heard. The
-accurately-measured signal is elapsed audio-playback time; the char-level mapping is intentionally
-fuzzy-toward-repeating, which makes the whole thing degrade gracefully. See
-[`edmini-v1-design.md` §6.1](edmini-v1-design.md).
+On barge-in, **immediately enqueue** the unspoken remainder (optionally with a little of what *was*
+spoken, for context) — do **not** auto-resume speaking it. Two reasons:
+
+- **The barge may diverge the conversation.** The user interrupted to redirect; Ed must not plow back
+  into the old narration. The remainder waits, and *when the conversation returns to it* Ed re-frames
+  with context — *"as I was saying earlier about X, …"*.
+- **The user may have read it.** The text is on screen (the conservative-cursor visual, `edmini-mb0`,
+  shows spoken vs unspoken), so the user can just read the rest and confirm — and the queued item is
+  **dismissed** without ever being spoken.
+
+So an interrupted remainder is just another **pending/unread item**: it slots into the existing narration
+queue (9ex; v3's "unread items wait, read on pull / on return") as a low-priority entry, re-surfaced
+contextually and dismissable, never barging in. The bias stays conservative (assume *less* was
+delivered — people repeat when interrupted).
+
+Mechanism: the cursor (`edmini-mb0`) gives the spoken/unspoken split + accurately-measured elapsed audio
+time → `conversation.item.truncate(audio_end_ms)` so the model's own context reflects what was heard; the
+remainder is queued with a context prefix; re-surfacing reuses the narration queue + a re-frame;
+dismissal on user confirmation. See [`edmini-v1-design.md` §6.1](edmini-v1-design.md).
 
 ## Input addressivity — "focused" vs "public" listening
 

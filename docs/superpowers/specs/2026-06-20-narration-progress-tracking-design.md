@@ -40,9 +40,10 @@ ask is to track *which words* have been spoken.)
 
 ### `69p` hook (future — not built here)
 
-The module also exposes the **clause/sentence boundary at or before the cursor** — the natural resume
-point. `69p` reads that on barge-in and re-speaks from there, accepting overlap. This feature builds the
-conservative cursor + the accurate elapsed-time plumbing `69p` needs; it does not do the re-speak.
+The module also exposes the **clause/sentence boundary at or before the cursor**. On barge-in, `69p`
+**queues** the unspoken remainder (re-surfaced later *with context*, or **dismissed** if the user just
+read it on screen) rather than auto-resuming — the barge may have changed topic. This feature builds the
+conservative cursor + the accurate elapsed-time plumbing `69p` needs; it does not do the recovery.
 
 ### Provider flexibility (stay decoupled from OpenAI Realtime)
 
