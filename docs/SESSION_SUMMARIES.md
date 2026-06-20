@@ -2442,3 +2442,36 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-20 00:30 — edmini / main
+
+**Last commit:** `7898f32 docs: checkpoint — run-lifecycle + interpreter decisions, harness-adapter principle`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-20 00:37 — edmini / main
+
+**Last commit:** `8ce168e fix(73d): tune the LLM classifier — intent=run_output not run_done; question wins`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

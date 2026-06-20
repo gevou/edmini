@@ -20,6 +20,31 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — v1 epic closed; four next-things surfaced (memory is the big one)
+
+Closed the `edmini-orm` epic — v1 (voice layer over an agent harness) is complete and live-verified
+end to end. `73d` landed first (classifier verified live against OpenAI: intent→`run_output`,
+done+question→`run_blocked`, all five failure cases correct; Fly worker redeployed — note a transient
+`401` on Fly's post-deploy smoke-check, just a `flyctl` token expiry, the image *did* update).
+
+Four observations from the user, filed for next:
+- **(`iee`, P1) edmini has zero memory.** Confirmed from code: the system prompt only gets the
+  thread-manager's local store (`getSystemPromptContext`), not the ledger's run/conversation history;
+  and the run registry is per-session with no rehydration. This also explains the user's report that an
+  agent response that arrived *while they were talking* was never delivered — if the run isn't in *this*
+  session's registry (cross-session / pre-reload), `handleLedgerEvent` drops it (`labelFor`→null). Fix:
+  rehydrate the registry from the ledger on session start (labels are already persisted in the
+  `task_dispatch` payload, courtesy of mb0) + feed recent history into the prompt. The ledger-as-system-
+  of-record was meant to make exactly this free; time to spend it.
+- **(`78z`) mb0 highlight still doesn't follow speech** even after the wall-clock fix — needs live
+  instrumentation (can't repro in the preview).
+- **(`zo8`) a rudimentary open-threads/topics panel** (active runs), distinct from the raw event log.
+
+The through-line: v1 proved the *spine* (one voice, many runs, durable record). The next layer is
+**memory/state across sessions** — which the ledger already holds; the client just doesn't read it back.
+
+---
+
 ### 2026-06-20 — checkpoint: the kanban hallucination, run-as-stream, and two "don't overfit" principles
 
 A debugging arc that turned into architecture. The user asked Ed to have Hermes make a kanban board; Ed

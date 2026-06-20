@@ -23,9 +23,19 @@ issues; the architecture also gained two "don't overfit to one vendor" principle
 swappable / don't overfit Hermes (§4.2). A run is a *stream*, not a tool-call (open-problems: Vercel
 Workflows deferred — ledger+worker already durable).
 
-**Open / backlog:** `73d` (LLM-classifier tuning — fuzzy half), `69p` (partial-delivery recovery: queue
-the remainder, don't barge), `qo3` (input addressivity), `xct` (full voice-provider abstraction),
-`a0g` (superseded by 73d). NB: lifecycle fix makes Ed chattier until 73d's LLM tuning lands.
+**v1 epic `orm` CLOSED (2026-06-20)** — voice layer over agent harness complete & live-verified.
+
+**Open / backlog (post-v1):**
+- `iee` **(P1, next)** — session has NO memory: rehydrate run registry + feed recent conversation/run
+  history into the system prompt from the ledger on session start. Fixes both: Ed has zero context of
+  past turns/runs, AND a response for a run not in *this* session's registry is dropped (never queued).
+  Registry is per-session today; labels are already persisted in the `task_dispatch` payload (mb0), so
+  rehydration is a ledger query. The system prompt only gets `getSystemPromptContext` (thread-store),
+  not ledger/Discord history.
+- `78z` — mb0 highlight still doesn't follow speech (post wall-clock fix); needs live instrumentation.
+- `zo8` — rudimentary open-threads/topics UI panel (active runs), separate from the event log.
+- `69p` — partial-delivery recovery (queue the remainder, don't barge). `qo3` — input addressivity.
+- `xct` — full voice-provider abstraction. (`73d`, `a0g`, `5ze`, `mgi`, `me3`, `iwi` closed this session.)
 
 ## ✅ v1 VOICE CAPSTONE VERIFIED end-to-end (2026-06-20)
 `edmini-9ex` + `edmini-rv9` → `verified`. Live prod test: two concurrent runs ('20s' 20×20, '30s'
