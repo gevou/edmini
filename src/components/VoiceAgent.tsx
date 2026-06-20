@@ -430,6 +430,17 @@ export default function VoiceAgent() {
     scrollToBottom();
   }, [turns, scrollToBottom]);
 
+  // Record Ed's spoken output (the edmini → User boundary crossing) in the ledger (edmini-rv9), so
+  // the whole conversation is durable/auditable, not just live in the browser. Fire-and-forget.
+  const logVoiceOutput = useCallback((text: string) => {
+    if (!text.trim()) return;
+    void fetch("/api/voice-output", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).catch(() => {});
+  }, []);
+
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
     let serverEvent: Record<string, unknown>;
     try {
@@ -519,6 +530,7 @@ export default function VoiceAgent() {
         );
       }
       if (type === "response.output_audio_transcript.done" && transcript) {
+        logVoiceOutput(transcript); // ledger: edmini → User crossing
         const userText = pendingUserTextRef.current;
         if (userText) {
           pendingUserTextRef.current = null;
@@ -558,7 +570,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall, tryDrain]);
+  }, [postTurnToThread, dispatchToolCall, tryDrain, logVoiceOutput]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);

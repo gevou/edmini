@@ -20,6 +20,32 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — closed the accountability gap: edmini's voice output now hits the ledger (rv9)
+
+Surfaced while verifying 9ex. The user asked, pointedly, *"Why are you asking me this? can't you read
+the text of edmini's output?"* — and the honest answer was no. Ed's spoken replies
+(`response.output_audio_transcript.done`) lived only in the browser's turns UI;
+[`VoiceAgent.tsx:508`](src/components/VoiceAgent.tsx) updated the bubbles but never logged them. So
+the server-side event log and the ledger had the User's words, the tool calls, and the narration
+*input* I inject — but not what Ed actually *said*. That's not just an observability gap: the
+**edmini → User** crossing is a boundary the §0 "ledger is the system of record, nothing silently
+disappears" thesis says should be recorded, and wasn't (the ledger had harness↔edmini but not the
+voice crossing).
+
+Fix: `POST /api/voice-output { text, runId? }` → `ledger.append({source:"edmini",
+kind:"voice_output", payload:{text}})` (service-role, since the browser only holds the anon key);
+`VoiceAgent` fires it on each finalized Ed transcript. Now all three crossing directions are in the
+ledger. Verified live: a POST landed `seq 49 edmini voice_output {"text":"That's 400…"}`. 76/76 tests
+(3 new), tsc + build clean. Bead `edmini-rv9`. Practical payoff: I can now read exactly what Ed said
+from the ledger on every test instead of asking.
+
+Also this session: the 9ex retest itself succeeded — two concurrent labeled runs (`20s`, `15s`)
+dispatched and both answered by Hermes **one second apart** (03:17:22 / :23), which finally grounds
+that Hermes is **not** strictly single-task — it ran two quick tasks concurrently. (The first attempt
+hit `Unknown tool call: delegate_task` — a stale cached client bundle, fixed by a hard refresh.)
+
+---
+
 ### 2026-06-19 — a new open problem surfaced: input addressivity ("focused" vs "public")
 
 The user raised a direction worth its own design later, captured now as a rough outline

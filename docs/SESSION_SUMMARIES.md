@@ -1913,3 +1913,120 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 19:54 — edmini / main
+
+**Last commit:** `a579931 feat(9ex): concurrent run narration — labels + priority queue`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:00 — edmini / main
+
+**Last commit:** `c7940ab docs(arch): capture input-addressivity open problem + reconcile v1 §6 with 9ex`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:10 — edmini / main
+
+**Last commit:** `c7940ab docs(arch): capture input-addressivity open problem + reconcile v1 §6 with 9ex`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:15 — edmini / main
+
+**Last commit:** `c7940ab docs(arch): capture input-addressivity open problem + reconcile v1 §6 with 9ex`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:18 — edmini / main
+
+**Last commit:** `c7940ab docs(arch): capture input-addressivity open problem + reconcile v1 §6 with 9ex`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:21 — edmini / main
+
+**Last commit:** `c7940ab docs(arch): capture input-addressivity open problem + reconcile v1 §6 with 9ex`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
