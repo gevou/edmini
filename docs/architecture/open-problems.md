@@ -5,6 +5,30 @@ Rough outlines of problems we know we'll need to design, captured so they aren't
 
 ---
 
+## Voice-provider flexibility — swap the voice model behind a normalized interface
+
+**Status:** backlog (2026-06-20) · bead `edmini-xct`
+
+Don't over-rely on OpenAI Realtime — better voice models keep emerging. Mirror the swappable harness
+transport: a **normalized voice-session interface** (events + actions; see
+[`edmini-v1-design.md` §6.2](edmini-v1-design.md)) with OpenAI Realtime as one implementation. The
+coupling lives in `VoiceAgent.tsx` today (WebRTC/SDP, ephemeral-key session shape, OpenAI event names,
+function-calling format, media-track audio); the pure core (ledger, run-registry, narration-queue,
+narration-progress) is already provider-agnostic. Worth extracting when a second provider comes into
+view or the coupling starts to bite — until then, keep new code behind a thin adapter.
+
+## Partial-delivery recovery — re-speak what was interrupted
+
+**Status:** rough outline (2026-06-20) · bead `edmini-69p`
+
+On barge-in, Ed should re-speak the **not-yet-spoken** part (and overlap a little of what *was* spoken),
+**assuming less was delivered** — because people repeat themselves when interrupted, and our spoken
+position is only an estimate. Builds on the conservative narration cursor (`edmini-mb0`) plus
+`conversation.item.truncate(audio_end_ms)` so the model's context reflects what was actually heard. The
+accurately-measured signal is elapsed audio-playback time; the char-level mapping is intentionally
+fuzzy-toward-repeating, which makes the whole thing degrade gracefully. See
+[`edmini-v1-design.md` §6.1](edmini-v1-design.md).
+
 ## Input addressivity — "focused" vs "public" listening
 
 **Status:** rough outline (2026-06-19) · design later · bead `edmini-qo3`

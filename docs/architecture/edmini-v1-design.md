@@ -217,6 +217,39 @@ GA session route). The three v3 phases stay simple because v1 has no topic graph
 > [`narration-queue.ts`](../../src/lib/voice/narration-queue.ts), and the
 > [design spec](../superpowers/specs/2026-06-19-concurrent-run-narration-design.md).
 
+### 6.1 Narration progress & partial delivery (conservative by design)
+
+The voice provider streams the **entire transcript first**, then plays audio through that fixed text; it
+gives **no per-word timestamps**, so the only accurately measurable signal is **elapsed audio-playback
+time**. The UI shows where narration is by a **conservative "spoken cursor"** — a deliberate *lower
+bound* (elapsed→chars via a self-calibrating rate, snapped *down* to a word boundary and biased behind),
+dimming the not-yet-spoken tail. Pure module `src/lib/voice/narration-progress.ts`
+([`edmini-mb0`](../superpowers/specs/2026-06-20-narration-progress-tracking-design.md)).
+
+**Partial-delivery recovery** (deferred, [`edmini-69p`](open-problems.md)): on barge-in, re-speak from
+the clause/sentence boundary *at or before* the cursor, **with overlap** — assume *less* was delivered,
+because people repeat themselves when interrupted. This is what makes the inherent fuzziness graceful: a
+wrong estimate just means Ed repeats a few extra words, never drops them. The accurate elapsed-time
+measurement is also what feeds `conversation.item.truncate` so the model's context reflects what was
+actually heard.
+
+### 6.2 The voice provider is swappable (don't over-rely on OpenAI Realtime)
+
+Symmetric to §4.2 (the *transport* is swappable behind the normalized envelope contract): the **voice
+provider** should be swappable behind a **normalized voice-session interface**, so edmini can adopt
+better voice models as they emerge. OpenAI Realtime is v1's *implementation*, not an assumption baked
+through the system. edmini's core — ledger, `run-registry`, `narration-queue`, `narration-progress` — is
+already provider-agnostic; the coupling is concentrated in
+[`VoiceAgent.tsx`](../../src/components/VoiceAgent.tsx) (WebRTC/SDP exchange, the ephemeral-key
+`/api/session` shape, OpenAI event names like `response.output_audio_transcript.delta`, the
+function-calling format, and media-track audio).
+
+The interface a provider must satisfy: **events** — user speech start/stop, user transcript, assistant
+transcript delta/done, audio start/elapsed/done, tool call, response start/end, error; **actions** —
+speak/inject text, send tool result, create/cancel response, truncate-at-offset. Extracting this is a
+post-v1 refactor ([`edmini-xct`](open-problems.md)); for now, new code (e.g. `narration-progress`) keeps
+the OpenAI specifics behind a thin adapter rather than deepening the coupling.
+
 ---
 
 ## 7. What's deleted, what's kept
