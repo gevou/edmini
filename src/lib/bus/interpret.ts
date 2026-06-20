@@ -135,7 +135,22 @@ export function llmClassifierFromEnv(model = "gpt-4o-mini"): LlmClassifier {
           },
         },
         messages: [
-          { role: "system", content: "Classify one message from an autonomous agent to its supervisor. run_blocked = it asks the user a question; run_failed = it reports an error/failure; run_done = a final completion with little content; run_output = a substantive result/answer. Reply with the JSON schema." },
+          {
+            role: "system",
+            content: `You classify ONE message an autonomous agent (the executor) sent to its supervisor, into exactly one kind. The agent streams MANY messages per task — it announces intent, narrates steps, then finally reports completion — so be conservative: NEVER call something done unless the message explicitly says it finished.
+
+Kinds:
+- run_blocked — it asks the USER a question or needs a decision/input to proceed ("Should I…?", "Which…?", "Want me to…?", "Could you confirm…?", or otherwise ends asking the user). If a message BOTH reports something AND asks the user a question, choose run_blocked — the question must be surfaced.
+- run_failed — it reports an error, a failure, or that it was interrupted / could not complete.
+- run_done — it EXPLICITLY reports the task is complete: past-tense/declarative completion like "Done", "Completed", "Finished", "I've created…", "All set", "✅". NOT mere intent or an in-progress step.
+- run_output — everything else the agent says while WORKING: intent/plans ("I'll create…", "I'm going to…", "Let me…", "Now I'll…", gerunds like "Creating…"), progress narration, or a substantive intermediate result/answer.
+
+Decisive rules:
+- FUTURE/INTENT phrasing ("I'll…", "I'm going to…", "Let me…", "Now…", "Creating…") is run_output, NOT run_done.
+- Only PAST-TENSE / explicit completion is run_done.
+- When unsure between run_output and run_done, choose run_output.
+- A question to the user always wins → run_blocked.`,
+          },
           { role: "user", content: text.slice(0, 4000) },
         ],
       }),
