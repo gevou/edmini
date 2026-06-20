@@ -20,6 +20,30 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — narration progress (mb0): a conservative spoken cursor
+
+Built the "show where the narration is" feature (`edmini-mb0`), brainstormed first. Two facts the user
+surfaced shaped it: the voice model **sends the whole transcript first, then speaks it** (clean karaoke
+target), and there are **no per-word timestamps**, so the only accurate signal is elapsed audio time.
+
+So the cursor is a **deliberate conservative lower bound**: pure module
+[`src/lib/voice/narration-progress.ts`](src/lib/voice/narration-progress.ts) maps elapsed audio ms →
+char index via a seeded chars/sec rate, biased behind by a 200ms margin and snapped *down* to a word
+boundary; it also exposes the clause/sentence boundary at/before it (the resume point `edmini-69p` will
+re-speak from). `VoiceAgent.tsx` snapshots `audioEl.currentTime` at each utterance's audio start, runs a
+100ms ticker to update a per-turn `spokenIndex`, and renders the spoken part bright / the rest dimmed
+(`text-white/35`). 11 new unit tests (87 total), tsc + build clean.
+
+Two principles captured in the design that make the fuzziness fine: recovery (`69p`) **queues** the
+remainder and **assumes less was delivered** (people repeat when interrupted), and because the unspoken
+text is now *on screen*, the user can just read it — so often Ed needn't re-speak at all. Also kept the
+cursor provider-agnostic (the module knows nothing about OpenAI) per the "don't over-rely on OpenAI
+Realtime" direction (`edmini-xct`). `calibrate()` exists + is tested but is intentionally NOT wired at
+runtime in v1 — `response.done` fires before playback drains, so calibrating from it would over-estimate
+the rate (non-conservative). Live dim/bright sweep is the remaining on-device check.
+
+---
+
 ### 2026-06-20 — worker cutover to Fly (v1 infra complete) + a UI blank-bubble fix
 
 Moved the always-on bus worker off the Mac onto **Fly** (`edmini-4vi`): app `edmini-bus-worker`
