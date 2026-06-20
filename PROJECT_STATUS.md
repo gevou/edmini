@@ -1,8 +1,31 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `fe18d90`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `22b9cd7`+. Beads synced to the Dolt remote
 (`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-20) — v1 voice loop working; live-testing & hardening
+v1 is functionally complete and live at **https://edmini.vercel.app** (prod). Bus worker runs on **Fly**
+(`edmini-bus-worker`, sole tap; Mac worker retired). Recent live-testing surfaced and fixed several real
+issues; the architecture also gained two "don't overfit to one vendor" principles.
+
+**Done + landed (mostly `needs-verification`, pending on-device re-test):**
+- `9ex` concurrent run narration (labels + priority queue) — VERIFIED. `rv9` voice_output→ledger — VERIFIED.
+- `mb0` narration progress (conservative wall-clock spoken cursor, dim-the-unspoken). `iwi` UI timestamps.
+- `mgi` **run lifecycle**: don't evict a run on `run_done` (harness streams many msgs; eviction was
+  dropping the real completion+question → silence). `me3` **confirm/clarify before delegating** (prompt).
+- `5ze` faithfulness prompt (don't claim done early). `73d` interpreter: tool-use-progress (`💻`/`✍️`/`📚`)
+  → ignore + Hermes markers isolated in a swappable `HERMES_MARKERS` adapter table.
+- Infra: service worker REMOVED (`4mf`, root cause of all stale-bundle/ChunkLoadError incidents);
+  build-id in header (`0t0`); git-push-only deploys (no hash flapping); `4vi` Fly worker cutover.
+
+**Architecture principles (documented):** voice provider swappable (§6.2, `xct`); harness adapter
+swappable / don't overfit Hermes (§4.2). A run is a *stream*, not a tool-call (open-problems: Vercel
+Workflows deferred — ledger+worker already durable).
+
+**Open / backlog:** `73d` (LLM-classifier tuning — fuzzy half), `69p` (partial-delivery recovery: queue
+the remainder, don't barge), `qo3` (input addressivity), `xct` (full voice-provider abstraction),
+`a0g` (superseded by 73d). NB: lifecycle fix makes Ed chattier until 73d's LLM tuning lands.
 
 ## ✅ v1 VOICE CAPSTONE VERIFIED end-to-end (2026-06-20)
 `edmini-9ex` + `edmini-rv9` → `verified`. Live prod test: two concurrent runs ('20s' 20×20, '30s'

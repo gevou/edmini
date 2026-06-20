@@ -142,6 +142,18 @@ A **transport** produces and consumes this contract. v1 ships exactly one:
 This keeps v3's executor-agnostic promise: swapping the harness or the channel is a transport
 change; the ledger, supervisor, and voice layer never move.
 
+**The interpreter is the harness *adapter* — keep harness-specifics isolated (don't overfit to
+Hermes).** A specific agent system has its own message conventions (Hermes signals with emoji
+prefixes: `❓ clarify`, `⏳` heartbeat, `💻`/`✍️`/`📚` tool-use progress, `⚠️` failure). Mapping those
+to normalized envelope kinds is exactly the interpreter's job, and the **one** place that knowledge
+belongs — concretely, a labeled, swappable marker table (`HERMES_MARKERS` in
+[`interpret.ts`](../../src/lib/bus/interpret.ts); `interpret(raw, llm, markers)` takes the table as a
+parameter). A different agent system supplies its own table; everything downstream sees only
+normalized kinds. This is the symmetric twin of the swappable **voice provider** (§6.2) and transport:
+harness-specifics live in the adapter, behind the envelope contract, so the rest of the system never
+overfits to one executor. (Two regimes, one principle: agents-as-executors and voice-providers are
+both pluggable behind normalized contracts.)
+
 ### 4.3 The seven interactions over the Discord transport
 
 | Interaction | v1 mapping | Notes |

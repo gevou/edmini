@@ -20,6 +20,45 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — checkpoint: the kanban hallucination, run-as-stream, and two "don't overfit" principles
+
+A debugging arc that turned into architecture. The user asked Ed to have Hermes make a kanban board; Ed
+claimed it was created before Hermes confirmed, then said nothing when the real "Done! … [question]"
+arrived. I first blamed the interpreter; the user corrected me — *"No. Your conclusion is wrong."* — and
+the complete root cause is sharper and twofold:
+
+1. **Hermes streams many messages per task** (intent → tool steps → the real "Done!", often with a
+   follow-up question), but edmini's design treated a run as having ONE terminal event. The interpreter
+   mislabeled the *first* message ("I'll create…") as `run_done`. So (a) Ed over-claimed "it's created"
+   off mere intent, and (b) `handleLedgerEvent` **evicted the run from the registry on that `run_done`**
+   — so every later event, including the genuine completion + question (seq 133, correctly `run_blocked`),
+   found no registry entry and was **dropped** → Ed went silent. One false `run_done`, both symptoms.
+
+Fixes landed: **don't evict a run on `run_done`/`run_failed`** (the harness keeps talking; evict only on
+cancel / session end) — kills the silence. **Confirm/clarify before delegating** (prompt) — Ed asks when
+ambiguous and confirms non-trivial requests before dispatching. **UI timestamps** on every bubble (the
+ledger always had `ts`). And the interpreter: a **tool-use-progress rule** (`💻`/`✍️`/`📚` + terminal/
+write_file/skills_list → `ignore`) so Hermes narrating its work isn't mistaken for completion.
+
+**The principles that crystallized — both are "don't overfit to one vendor":**
+- The user: *"treating interactions with the agent(s) as tool calls is the fundamental issue… they may
+  involve very long time spans."* True conceptually — but the dispatch IS a quick tool call that returns
+  a runId; the long span flows back async via the ledger, so duration wasn't the bug. **A run is a
+  *stream*, not a request/response.** Could Vercel Workflows model it as durable server-side steps? Yes,
+  later — but the ledger + Fly worker already provide durability, so deferred (open-problems.md).
+- The user: *"I'm getting a bit concerned of overfitting to hermes (which could harm expandability to
+  other agent systems)."* Right, and it's the twin of the earlier "don't over-rely on OpenAI Realtime."
+  So the interpreter is now explicitly **the harness adapter**: Hermes's emoji conventions live in a
+  labeled, swappable `HERMES_MARKERS` table (`interpret(raw, llm, markers)`); another agent system
+  supplies its own, behind the normalized envelope contract. Documented as v1-design §4.2 — symmetric to
+  the swappable voice provider (§6.2). Two pluggable edges, one principle.
+
+Open follow-up: the *fuzzy* half of the classifier (`edmini-73d`) — LLM-prompt tuning so plain intent
+maps to `run_output` not `run_done`. The deterministic markers + the lifecycle fix already neutralize the
+worst of it. (The lifecycle fix does make Ed chattier until the classifier is tuned — a known tradeoff.)
+
+---
+
 ### 2026-06-20 — narration progress (mb0): a conservative spoken cursor
 
 Built the "show where the narration is" feature (`edmini-mb0`), brainstormed first. Two facts the user
