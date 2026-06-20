@@ -20,6 +20,46 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — fw5 verified on a real voice loop + deployed to Vercel (the v1 capstone works)
+
+The day's payoff: **the v1 voice loop works end-to-end on a live OpenAI Realtime mic session.** Tested
+on `localhost:3000` (app + bus worker + Hermes gateway all local):
+
+- *"Calculate 20 times 20"* → `delegate_task` → `/api/bus` dispatch (ledger seq 17) → Hermes
+  "20 × 20 = **400**" → worker interpret `run_output` (seq 19) → Supabase Realtime → browser → **Ed
+  spoke "400" back.** The user, asked if Ed narrated the result: **"Yes it spoke back."** That's the
+  one hop nothing upstream could prove — the whole inbound narration chain (ledger→Realtime→browser
+  inject→speech) lit up.
+- *"Calculate 10 times 20"* then *"cancel that"* → `cancel_run` fired (seq 25); **"It said it was
+  cancelled."** Note the race: Hermes had *already* answered "200" one second before the cancel landed
+  (seq 23 reply vs seq 25 cancel), and replied "Got it — already done." Because `cancel_run` clears
+  `activeRunId`, Ed correctly went quiet on the stale "200" — cancel wins.
+
+So `delegate_task` ✅, inbound narration ✅, `cancel_run` ✅ over real voice. `edmini-fw5` → `verified`.
+
+**Deployed to Vercel for phone testing (`edmini-gqg`).** The repo auto-deploys `main`, so the fw5 code
+was already live — but prod had only a stale 57-day `OPENAI_API_KEY` and was missing six env vars.
+Added `EDMINI_DISCORD_BOT_TOKEN`, `EDMINI_BUS_CHANNEL_ID`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the
+`NEXT_PUBLIC_*` are build-time inlined → required a fresh `vercel --prod`), refreshed the OpenAI key.
+Verified on prod: `https://edmini.vercel.app` is **public** (the deployment-hash + git-branch aliases
+are SSO-gated — easy trap), serves `delegate_task/answer_run/cancel_run`, has the Supabase ref inlined
+in the client JS, and a prod `/api/bus` dispatch flowed Discord → Mac worker → ledger `run_done`.
+
+**The architectural seam that phone testing exposes:** the worker can't go to Vercel (serverless can't
+hold the Discord gateway). So inbound narration on the phone works only while *some* worker is up —
+the Mac one for now. Hence `edmini-4vi`: host the worker on an always-on platform. Leaning Fly (flyctl
+already installed, possibly a leftover hackathon app to reuse — pending `fly auth login` to check);
+switching Fly↔Railway later is ~30 min since the worker is just `tsx worker/index.ts` + 5 env vars.
+
+**Findings logged along the way:** the inbound interpreter classifies short final answers inconsistently
+as `run_output` vs `run_done` (both narrate, so cosmetic); the dispatch still double-logs the instruction
+as `discord_message` (transport posts it to the channel *and* re-posts in the thread it spawns — seq
+11/12 had different messageIds, one equal to the runId/thread-id — pre-existing `oys` behavior, harmless
+but worth a cleanup).
+
+---
+
 ### 2026-06-19 — fw5 pt2 shipped, then a design it forced us to undo (voice rewire → concurrent narration)
 
 Two-part day. First, **fw5 pt2** — the v1 voice capstone — landed (`fcaf456`): `/api/session` tools

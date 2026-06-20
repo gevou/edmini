@@ -4,6 +4,24 @@
 `main` (git), in sync with origin. fw5 pt2 rewire landed `fcaf456`. Beads synced to the Dolt remote
 (`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
 
+## 🎉 v1 voice loop VERIFIED end-to-end (2026-06-19)
+`edmini-fw5` → **`verified`**. Live localhost mic test: "Calculate 20×20" → Ed spoke "400" (full
+inbound narration ledger→Realtime→browser→speech); "cancel that" → `cancel_run` + Ed confirmed
+cancellation. delegate_task ✅ narration ✅ cancel_run ✅ over a real OpenAI Realtime session.
+
+Deployed to Vercel for phone testing (`edmini-gqg` ✓, `needs-verification` until phone-tested):
+**https://edmini.vercel.app** (PUBLIC; hash/git-branch aliases are SSO-gated — use the prod alias).
+Added 6 missing env vars + refreshed stale OPENAI_API_KEY; `NEXT_PUBLIC_*` inlined via `vercel --prod`.
+
+OPEN THREADS:
+1. **`edmini-4vi`** — host the bus worker on an always-on platform (worker can't go on Vercel
+   serverless). Leaning Fly (flyctl installed, maybe a reusable hackathon app). BLOCKED on user
+   `fly auth login` so I can check `fly apps list`. Until then, phone inbound needs the Mac worker up.
+2. **`edmini-9ex`** — concurrent run narration spec written + approved; awaiting user spec review
+   before writing-plans. (See ACTIVE section below.)
+3. Local processes running this session: `pnpm dev` (pid 39254) + `pnpm worker` (pid 39534) +
+   Hermes gateway (pid 7770, launchd). Worker log: the btj0qxgca task output.
+
 ## ACTIVE (2026-06-19): concurrent run narration (`edmini-9ex`) — spec approved, planning next
 fw5 pt2 shipped a **one-active-run** voice layer (single `activeRunId`, other runs' events ignored).
 In review the user dismantled the justification: "voice is serial" constrains only the edmini↔user
