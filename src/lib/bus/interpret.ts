@@ -31,22 +31,69 @@ function payloadFor(kind: InboundEnvelopeKind, text: string): Record<string, unk
   }
 }
 
-export async function interpret(raw: string, llm?: LlmClassifier): Promise<Interpretation> {
+/** A deterministic rule that maps a raw message to a normalized interpretation. */
+export interface MarkerRule {
+  test: (text: string) => boolean;
+  toKind: (text: string) => Interpretation;
+}
+
+// Hermes's tool-use progress prefixes (it narrates its work). Matched by literal prefix so multi-
+// codepoint emoji (e.g. ✍️) compare reliably.
+const HERMES_TOOL_PREFIXES = ["💻", "✍️", "📚", "🔧", "🎨", "🔍", "📁", "🌐", "🛠️", "⚙️"];
+
+/**
+ * Hermes marker rules — THE harness adapter. This is the ONE place harness-specific conventions
+ * (Hermes's emoji prefixes) live; everything downstream (ledger, run-registry, narration) sees only
+ * normalized envelope kinds. A different agent system supplies its OWN table to `interpret(..., markers)`
+ * — keep harness specifics HERE so the rest of the system never overfits to Hermes. See
+ * docs/architecture/edmini-v1-design.md §4 (the interpreter is the swappable harness adapter).
+ */
+export const HERMES_MARKERS: MarkerRule[] = [
+  // A clarifying question it needs answered.
+  {
+    test: (t) => /^❓/.test(t) || /^clarify\s*:/i.test(t),
+    toKind: (t) => ({
+      kind: "run_blocked",
+      payload: { question: t.replace(/^❓\s*/, "").replace(/^clarify\s*:\s*/i, "").trim() },
+      confidence: 0.95,
+      via: "marker",
+    }),
+  },
+  // Heartbeat ("still working") — surface nothing.
+  {
+    test: (t) => /^⏳/.test(t) || /^still working\b/i.test(t),
+    toKind: (t) => ({ kind: "ignore", payload: { reason: "heartbeat", text: t }, confidence: 0.95, via: "marker" }),
+  },
+  // Tool-use PROGRESS — Hermes narrating its work (terminal, file ops, skill/tool loading). NOT a
+  // result or completion → surface nothing, so it can't be mistaken for "done" (edmini-73d).
+  {
+    test: (t) =>
+      HERMES_TOOL_PREFIXES.some((p) => t.startsWith(p)) ||
+      /^(terminal|write_file|read_file|edit_file|skills_list|bash|mcp)\b/i.test(t),
+    toKind: (t) => ({ kind: "ignore", payload: { reason: "tool_progress", text: t }, confidence: 0.9, via: "marker" }),
+  },
+  // Failure / interruption.
+  {
+    test: (t) => /^⚠️/.test(t) || /\b(shutting down|interrupted)\b/i.test(t),
+    toKind: (t) => ({ kind: "run_failed", payload: { error: t }, confidence: 0.85, via: "marker" }),
+  },
+  // Run came online.
+  {
+    test: (t) => /\bonline\b\s*—/.test(t),
+    toKind: (t) => ({ kind: "run_started", payload: { note: t }, confidence: 0.7, via: "marker" }),
+  },
+];
+
+export async function interpret(
+  raw: string,
+  llm?: LlmClassifier,
+  markers: MarkerRule[] = HERMES_MARKERS,
+): Promise<Interpretation> {
   const text = raw.trim();
 
-  // ── marker-deterministic (Hermes emoji prefixes) ──
-  if (/^❓/.test(text) || /^clarify\s*:/i.test(text)) {
-    const question = text.replace(/^❓\s*/, "").replace(/^clarify\s*:\s*/i, "").trim();
-    return { kind: "run_blocked", payload: { question }, confidence: 0.95, via: "marker" };
-  }
-  if (/^⏳/.test(text) || /^still working\b/i.test(text)) {
-    return { kind: "ignore", payload: { reason: "heartbeat", text }, confidence: 0.95, via: "marker" };
-  }
-  if (/^⚠️/.test(text) || /\b(shutting down|interrupted)\b/i.test(text)) {
-    return { kind: "run_failed", payload: { error: text }, confidence: 0.85, via: "marker" };
-  }
-  if (/\bonline\b\s*—/.test(text)) {
-    return { kind: "run_started", payload: { note: text }, confidence: 0.7, via: "marker" };
+  // ── deterministic harness markers first ──
+  for (const m of markers) {
+    if (m.test(text)) return m.toKind(text);
   }
 
   // ── plain text → LLM, else default to a result ──

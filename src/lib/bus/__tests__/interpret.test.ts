@@ -34,6 +34,17 @@ describe("interpret — specifics", () => {
     expect((await interpret("⚠️ Gateway shutting down — task interrupted.")).kind).toBe("run_failed");
   });
 
+  it("treats tool-use progress lines as ignore, not a result (edmini-73d)", async () => {
+    const llm = vi.fn(); // must NOT be called — markers handle these deterministically
+    for (const msg of ["💻 terminal\nmkdir -p ~/dev/foo", "✍️ write_file: \"/tmp/x\"", "📚 skills_list: \"kanban\"", "terminal: ls -la"]) {
+      const r = await interpret(msg, llm as never);
+      expect(r.kind).toBe("ignore");
+      expect(r.via).toBe("marker");
+      expect(r.payload.reason).toBe("tool_progress");
+    }
+    expect(llm).not.toHaveBeenCalled();
+  });
+
   it("defaults plain text to run_output when no LLM is provided", async () => {
     const r = await interpret("The answer is 731.");
     expect(r).toMatchObject({ kind: "run_output", via: "default" });
