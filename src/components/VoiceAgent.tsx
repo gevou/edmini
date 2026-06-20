@@ -198,7 +198,11 @@ export default function VoiceAgent() {
   // Narration progress (mb0): a conservative spoken-position cursor for the active Ed turn.
   const narrationProgressRef = useRef<NarrationProgress | null>(null);
   if (!narrationProgressRef.current) narrationProgressRef.current = createNarrationProgress();
-  const audioStartRef = useRef<number | null>(null); // audioEl.currentTime at this utterance's audio start
+  // Wall-clock timestamp (performance.now()) at this utterance's audio start. NB: audioEl.currentTime
+  // does NOT advance for a WebRTC MediaStream, so we time playback by wall clock (audio plays ~realtime).
+  const audioStartRef = useRef<number | null>(null);
+  const speakingTurnIdRef = useRef<number | null>(null); // the turn the cursor is sweeping (survives currentTurnIdRef→null)
+  const reachedFullRef = useRef<boolean>(false); // set when the cursor hits the end → stop the ticker
   const progressTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
@@ -514,27 +518,36 @@ export default function VoiceAgent() {
       if (!modelSpeakingFlagRef.current) {
         modelSpeakingFlagRef.current = true;
         pushEvent({ kind: "model_speaking", label: "Model started speaking" });
-        // mb0: snapshot the audio clock and start advancing the spoken cursor for the active turn.
-        audioStartRef.current = audioElRef.current?.currentTime ?? null;
+        // mb0: start sweeping the spoken cursor for this utterance, timed by wall clock.
+        // Finalize any previous speaking turn (safety) and target the active one. Its id is captured
+        // here so the cursor keeps advancing even after currentTurnIdRef is cleared at transcript.done.
+        const prevSpeaking = speakingTurnIdRef.current;
+        if (prevSpeaking !== null) {
+          setTurns((prev) => prev.map((t) => (t.id === prevSpeaking ? { ...t, spokenIndex: t.edText.length } : t)));
+        }
+        audioStartRef.current = performance.now();
+        speakingTurnIdRef.current = currentTurnIdRef.current;
+        reachedFullRef.current = false;
         stopProgressTicker();
         progressTickerRef.current = setInterval(() => {
-          const audioEl = audioElRef.current;
+          if (reachedFullRef.current) {
+            stopProgressTicker();
+            return;
+          }
+          const id = speakingTurnIdRef.current;
           const start = audioStartRef.current;
-          const activeId = currentTurnIdRef.current;
-          if (!audioEl || start === null || activeId === null) return;
-          const elapsedAudioMs = Math.max(0, (audioEl.currentTime - start) * 1000);
+          if (id === null || start === null) return;
+          const elapsedAudioMs = performance.now() - start;
           setTurns((prev) =>
-            prev.map((t) =>
-              t.id === activeId
-                ? {
-                    ...t,
-                    spokenIndex: narrationProgressRef.current!.advance({
-                      fullText: t.edText,
-                      elapsedAudioMs,
-                    }).spokenIndex,
-                  }
-                : t,
-            ),
+            prev.map((t) => {
+              if (t.id !== id) return t;
+              const { spokenIndex } = narrationProgressRef.current!.advance({
+                fullText: t.edText,
+                elapsedAudioMs,
+              });
+              reachedFullRef.current = t.edText.length > 0 && spokenIndex >= t.edText.length;
+              return { ...t, spokenIndex };
+            }),
           );
         }, 100);
       }
@@ -542,15 +555,8 @@ export default function VoiceAgent() {
     if (type === "response.done") {
       setStatus("listening");
       modelSpeakingFlagRef.current = false;
-      // mb0: stop advancing and mark the active turn fully spoken.
-      stopProgressTicker();
-      audioStartRef.current = null;
-      const doneId = currentTurnIdRef.current;
-      if (doneId !== null) {
-        setTurns((prev) =>
-          prev.map((t) => (t.id === doneId ? { ...t, spokenIndex: t.edText.length } : t)),
-        );
-      }
+      // mb0: do NOT snap to full here — response.done fires when generation finishes, but the audio is
+      // still playing out. The wall-clock ticker keeps sweeping and reaches full on its own.
       onResponseEnded(); // clear in-flight, fire next queued response / drain narration
     }
     // A rejected response.create (e.g. "conversation already has an active response") arrives as an
@@ -757,6 +763,8 @@ export default function VoiceAgent() {
     pendingToolResponsesRef.current = [];
     stopProgressTicker();
     audioStartRef.current = null;
+    speakingTurnIdRef.current = null;
+    reachedFullRef.current = false;
     narrationProgressRef.current = createNarrationProgress();
     userSpeakingRef.current = false;
     responseActiveRef.current = false;

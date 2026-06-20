@@ -8,7 +8,10 @@
  */
 
 const DEFAULT_SEED_RATE = 14; // chars/sec — typical TTS pace; calibrate() can sharpen it
-const DEFAULT_MARGIN_MS = 200; // playback uncertainty → bias the cursor behind
+// Bias the cursor behind by this much. Driven by a wall clock that starts at the first audio *delta*
+// (before playback drains the jitter buffer), so the margin must cover that start-up buffer to stay
+// conservative (cursor at/behind the voice, never ahead).
+const DEFAULT_MARGIN_MS = 350;
 
 export interface SpokenPosition {
   /** Conservative spoken-so-far index into fullText (always a word boundary). */
