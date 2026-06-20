@@ -249,7 +249,7 @@ export default function VoiceAgent() {
               content: [
                 {
                   type: "input_text",
-                  text: `(System update — relay to the User naturally and briefly, in your own words; name the task when more than one is in flight; do not read verbatim.) ${lines}`,
+                  text: `(System update — relay to the User naturally and briefly, in your own words; name the task when more than one is in flight; do not read verbatim. Relay ONLY what this says; do NOT claim the task is done/created/ready unless it is tagged "finished". A "reported" update is progress, not completion.) ${lines}`,
                 },
               ],
             },
