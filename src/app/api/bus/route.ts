@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type BusRequest =
-  | { action: "dispatch"; instruction: string }
+  | { action: "dispatch"; instruction: string; label?: string }
   | { action: "answer"; runId: string; text: string }
   | { action: "cancel"; runId: string; reason?: string };
 
@@ -35,7 +35,14 @@ export async function POST(request: Request): Promise<Response> {
       case "dispatch": {
         if (!body.instruction?.trim()) return Response.json({ error: "instruction required" }, { status: 400 });
         const { runId } = await transport.dispatch(body.instruction);
-        await ledger.append({ runId, source: "edmini", kind: "task_dispatch", payload: { instruction: body.instruction } });
+        // Persist the model-chosen label in the ledger (9ex): the in-memory run registry is a cache
+        // over this; replaying task_dispatch events through the registry reconstructs labels.
+        await ledger.append({
+          runId,
+          source: "edmini",
+          kind: "task_dispatch",
+          payload: { instruction: body.instruction, label: body.label ?? null },
+        });
         return Response.json({ runId });
       }
       case "answer": {

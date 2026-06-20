@@ -6,17 +6,25 @@ import EventLogPanel from "@/components/EventLogPanel";
 import { pushEvent } from "@/lib/event-log-store";
 import type { LedgerEvent } from "@/lib/ledger";
 import { ledgerFromEnv } from "@/lib/ledger-supabase";
+import { createRunRegistry, type RunRegistry } from "@/lib/voice/run-registry";
+import {
+  createNarrationQueue,
+  type NarrationBatch,
+  type NarrationQueue,
+  type Priority,
+} from "@/lib/voice/narration-queue";
 
 /**
- * Map the active run's interpreted ledger events to a one-line summary that Ed
- * narrates to the User. Only harness-sourced lifecycle kinds are surfaced; raw
- * discord_message rows and outbound (edmini) events are ignored.
+ * How each interpreted harness lifecycle event becomes a narration item (9ex). `render` produces the
+ * bare content; the run's label is prepended when composing the spoken batch. blocked/failed are
+ * high priority (need the user); output/done are low. Raw discord_message and outbound (edmini)
+ * events are not narrated.
  */
-const NARRATE_KINDS: Record<string, (p: Record<string, unknown>) => string> = {
-  run_blocked: (p) => `The task is asking: ${(p.question as string) ?? ""}`,
-  run_output: (p) => `The task reported back: ${(p.text as string) ?? ""}`,
-  run_failed: (p) => `The task failed: ${(p.error as string) ?? ""}`,
-  run_done: (p) => `The task finished: ${(p.summary as string) ?? ""}`,
+const NARRATE: Record<string, { priority: Priority; render: (p: Record<string, unknown>) => string }> = {
+  run_blocked: { priority: "high", render: (p) => `is asking — ${(p.question as string) ?? ""}` },
+  run_failed: { priority: "high", render: (p) => `failed — ${(p.error as string) ?? ""}` },
+  run_output: { priority: "low", render: (p) => `reported — ${(p.text as string) ?? ""}` },
+  run_done: { priority: "low", render: (p) => `finished — ${(p.summary as string) ?? ""}` },
 };
 
 interface Turn {
@@ -164,10 +172,16 @@ export default function VoiceAgent() {
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
-  // The single active run (Discord thread id) the voice layer is supervising.
-  // delegate_task sets it; answer_run/cancel_run target it; run_done/run_failed clear it.
-  const activeRunIdRef = useRef<string | null>(null);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
+  // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
+  // single voice output channel under the priority policy. userSpeaking/responseActive gate draining
+  // so we never interrupt the User and never fire response.create while a response is in flight.
+  const runRegistryRef = useRef<RunRegistry | null>(null);
+  if (!runRegistryRef.current) runRegistryRef.current = createRunRegistry();
+  const narrationQueueRef = useRef<NarrationQueue | null>(null);
+  if (!narrationQueueRef.current) narrationQueueRef.current = createNarrationQueue();
+  const userSpeakingRef = useRef<boolean>(false);
+  const responseActiveRef = useRef<boolean>(false);
 
   const sendToolResult = useCallback((callId: string, outputJson: string) => {
     const dc = dcRef.current;
@@ -183,14 +197,18 @@ export default function VoiceAgent() {
       }),
     );
     dc.send(JSON.stringify({ type: "response.create" }));
+    responseActiveRef.current = true; // a response is now in flight (cleared on response.done)
   }, []);
 
-  // Inject a background update into the live session so Ed speaks it. Uses a
-  // user-role message (the reliable proactive-speech path) framed so the model
-  // relays it rather than reading it verbatim, then triggers a response.
-  const injectNarration = useCallback((text: string) => {
+  // Speak a batch of background updates as one utterance. Each item is prefixed with its run label
+  // ("Run 'export' failed — …") so Ed can name the task; framed so the model relays rather than
+  // reads verbatim. Triggers one response for the whole batch.
+  const injectNarration = useCallback((batch: NarrationBatch) => {
     const dc = dcRef.current;
-    if (!dc || dc.readyState !== "open") return;
+    if (!dc || dc.readyState !== "open" || batch.length === 0) return;
+    const lines = batch
+      .map((i) => (i.label ? `Run '${i.label}' ${i.text}` : i.text))
+      .join(". ");
     dc.send(
       JSON.stringify({
         type: "conversation.item.create",
@@ -200,35 +218,51 @@ export default function VoiceAgent() {
           content: [
             {
               type: "input_text",
-              text: `(System update from the background task — relay this to the User naturally in your own words, briefly; do not read it verbatim.) ${text}`,
+              text: `(System update — relay to the User naturally and briefly, in your own words; name the task when more than one is in flight; do not read verbatim.) ${lines}`,
             },
           ],
         },
       }),
     );
     dc.send(JSON.stringify({ type: "response.create" }));
+    responseActiveRef.current = true;
   }, []);
 
-  // Narrate a ledger event for the active run. Inbound (harness) lifecycle
-  // events only; run_done/run_failed also close out the active run.
+  // Drain the narration queue if the channel is idle (open, User not speaking, no response in
+  // flight). Re-called whenever idle state may have changed: new enqueue, response.done, user pause.
+  const tryDrain = useCallback(() => {
+    const dc = dcRef.current;
+    const canSpeak =
+      !!dc && dc.readyState === "open" && !userSpeakingRef.current && !responseActiveRef.current;
+    const batch = narrationQueueRef.current!.drain(canSpeak);
+    if (batch) injectNarration(batch);
+  }, [injectNarration]);
+
+  // An interpreted harness event for one of our runs → enqueue a narration item (by label).
+  // run_done/run_failed close the run out of the registry; everything else updates its status.
   const handleLedgerEvent = useCallback(
     (event: LedgerEvent) => {
-      if (event.source !== "harness") return;
-      if (!event.runId || event.runId !== activeRunIdRef.current) return;
-      const render = NARRATE_KINDS[event.kind];
-      if (!render) return;
-      const summary = render(event.payload);
+      if (event.source !== "harness" || !event.runId) return;
+      const registry = runRegistryRef.current!;
+      const label = registry.labelFor(event.runId);
+      if (!label) return; // not a run we dispatched this session
+      const spec = NARRATE[event.kind];
+      if (!spec) return;
+      const text = spec.render(event.payload);
       pushEvent({
         kind: event.kind === "run_failed" ? "failed" : event.kind === "run_done" ? "completed" : "info",
-        label: `Run update: ${event.kind}`,
-        detail: summary,
+        label: `Run '${label}': ${event.kind}`,
+        detail: text,
       });
       if (event.kind === "run_done" || event.kind === "run_failed") {
-        activeRunIdRef.current = null;
+        registry.remove(event.runId);
+      } else {
+        registry.setStatus(event.runId, event.kind === "run_blocked" ? "blocked" : "active");
       }
-      injectNarration(summary);
+      narrationQueueRef.current!.enqueue({ priority: spec.priority, kind: event.kind, text, label });
+      tryDrain();
     },
-    [injectNarration],
+    [tryDrain],
   );
 
   const dispatchToolCall = useCallback(
@@ -246,34 +280,45 @@ export default function VoiceAgent() {
         return { ok: res.ok, data };
       };
 
+      const registry = runRegistryRef.current!;
+
       try {
         if (name === "delegate_task") {
           const instruction =
             typeof args.instruction === "string" ? args.instruction : "";
+          const requestedLabel = typeof args.label === "string" ? args.label : "";
           pushEvent({
             kind: "dispatched",
-            label: "Tool call: delegate_task",
+            label: `Tool call: delegate_task (${requestedLabel || "—"})`,
             detail: instruction || "(no instruction)",
           });
-          const { ok, data } = await callBus({ action: "dispatch", instruction });
+          const { ok, data } = await callBus({
+            action: "dispatch",
+            instruction,
+            label: requestedLabel,
+          });
           if (ok && typeof data.runId === "string") {
-            activeRunIdRef.current = data.runId;
+            // Register → canonical label (collision-suffixed); hand it back so the model re-syncs.
+            const canonical = registry.register(data.runId, requestedLabel);
             pushEvent({
               kind: "awaiting",
-              label: "Run dispatched",
+              label: `Run dispatched: '${canonical}'`,
               detail: `run ${data.runId}`,
             });
+            sendToolResult(callId, JSON.stringify({ ...data, label: canonical }));
+          } else {
+            sendToolResult(callId, JSON.stringify(data));
           }
-          sendToolResult(callId, JSON.stringify(data));
           return;
         }
 
         if (name === "answer_run") {
-          const runId = activeRunIdRef.current;
+          const label = typeof args.label === "string" ? args.label : "";
           const text = typeof args.text === "string" ? args.text : "";
-          pushEvent({ kind: "info", label: "Tool call: answer_run", detail: text });
+          pushEvent({ kind: "info", label: `Tool call: answer_run ('${label}')`, detail: text });
+          const runId = registry.resolveLabel(label);
           if (!runId) {
-            sendToolResult(callId, JSON.stringify({ error: "no active run to answer" }));
+            sendToolResult(callId, JSON.stringify({ error: `no run labeled '${label}'` }));
             return;
           }
           const { data } = await callBus({ action: "answer", runId, text });
@@ -282,19 +327,20 @@ export default function VoiceAgent() {
         }
 
         if (name === "cancel_run") {
-          const runId = activeRunIdRef.current;
+          const label = typeof args.label === "string" ? args.label : "";
           const reason = typeof args.reason === "string" ? args.reason : undefined;
           pushEvent({
             kind: "cancelled",
-            label: "Tool call: cancel_run",
+            label: `Tool call: cancel_run ('${label}')`,
             detail: reason ?? "(no reason given)",
           });
+          const runId = registry.resolveLabel(label);
           if (!runId) {
-            sendToolResult(callId, JSON.stringify({ error: "no active run to cancel" }));
+            sendToolResult(callId, JSON.stringify({ error: `no run labeled '${label}'` }));
             return;
           }
           const { data } = await callBus({ action: "cancel", runId, reason });
-          activeRunIdRef.current = null;
+          registry.remove(runId);
           sendToolResult(callId, JSON.stringify(data));
           return;
         }
@@ -396,10 +442,16 @@ export default function VoiceAgent() {
 
     if (type === "input_audio_buffer.speech_started") {
       setStatus("listening");
+      userSpeakingRef.current = true; // never narrate over the User
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
     }
     if (type === "input_audio_buffer.speech_stopped") {
+      userSpeakingRef.current = false;
       pushEvent({ kind: "user_paused", label: "User paused" });
+      tryDrain(); // channel may now be free for a queued update
+    }
+    if (type === "response.created") {
+      responseActiveRef.current = true; // a response is in flight (ours or model-initiated)
     }
     if (type === "response.output_audio.delta") {
       setStatus("speaking");
@@ -411,6 +463,8 @@ export default function VoiceAgent() {
     if (type === "response.done") {
       setStatus("listening");
       modelSpeakingFlagRef.current = false;
+      responseActiveRef.current = false;
+      tryDrain(); // response finished → drain the next queued update if any
     }
 
     // Tool call from the voice model — route to the supervisor via SSE
@@ -504,7 +558,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall]);
+  }, [postTurnToThread, dispatchToolCall, tryDrain]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
@@ -599,7 +653,10 @@ export default function VoiceAgent() {
     }
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
-    activeRunIdRef.current = null;
+    runRegistryRef.current = createRunRegistry();
+    narrationQueueRef.current = createNarrationQueue();
+    userSpeakingRef.current = false;
+    responseActiveRef.current = false;
     dcRef.current?.close();
     pcRef.current?.close();
     dcRef.current = null;

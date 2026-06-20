@@ -20,6 +20,52 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — concurrent run narration implemented (9ex): labels + a priority queue
+
+Built the lift from one-active-run to **N concurrent runs**, straight from the approved spec. The
+user asked to see the plan in the plan window (`EnterPlanMode` → wrote
+`~/.claude/plans/buzzing-napping-puzzle.md` → `ExitPlanMode`, approved unedited), then I worked the
+six steps bottom-up.
+
+Two new pure modules (mirroring the `ledger.ts` pure-core / `ledger-supabase.ts` binding split), each
+TDD'd:
+- `src/lib/voice/run-registry.ts` — the label↔runId map. `register(runId, requested)` returns the
+  **canonical** label after a collision suffix (`export` taken → `export-2`); `resolveLabel`,
+  `labelFor`, `setStatus`, `remove`, `has`. A cache/projection over the ledger — and because the
+  collision rule is deterministic by registration order, replaying persisted `task_dispatch` labels
+  through `register()` reconstructs the same canonical labels (so future rehydrate is free).
+- `src/lib/voice/narration-queue.ts` — **source-agnostic** by design (the seam for a future run-less
+  "invoker" producer). `enqueue` + `drain(canSpeak)` returns all `high` items (run_blocked/failed)
+  else all `low` (run_output/done), only when the channel is idle, collapsing simultaneous items into
+  one batch.
+
+Wiring:
+- `/api/bus` dispatch now persists `label` in the `task_dispatch` payload (one-line change + test).
+- `/api/session` tools take `label`: `delegate_task(instruction, label)`, `answer_run(label, text)`,
+  `cancel_run(label, reason?)`; instructions rewritten for many concurrent labeled runs and
+  label-tagged background updates.
+- `src/components/VoiceAgent.tsx`: `activeRunIdRef` → `runRegistryRef` + `narrationQueueRef`.
+  `dispatchToolCall` registers on dispatch (hands the canonical label back to the model) and resolves
+  label→runId for answer/cancel. `handleLedgerEvent` enqueues by label; a `tryDrain()` fires the
+  next batch only when `canSpeak()` = dc open ∧ `!userSpeaking` ∧ `!responseActive`. Two new flags:
+  `userSpeakingRef` (speech_started/stopped) and `responseActiveRef` (response.created/done, plus set
+  on every `response.create` we send) — the latter is what stops a queued narration from firing
+  `response.create` into an in-flight response ("conversation already has an active response").
+  Triggers: enqueue, `response.done`, `speech_stopped`.
+
+Verification: `tsc` clean, **73/73 tests** (12 new for the two modules + the bus label test), `next
+build` passes. Verified the backend live on the dev server (hot-reloaded): `/api/session` requires
+`label` on all three tools; a `/api/bus` dispatch persisted `{"label":"sixes", …}`. `edmini-9ex`
+closed + `needs-verification` — the concurrent-narration *behavior* (two labeled runs narrating by
+priority without interrupting the user, cancel/answer by label) needs the live voice test.
+
+**Race noted for the live test:** if a harness event lands in the gap after the user stops speaking
+but before the model's own response starts, the `speech_stopped` drain could fire `response.create`
+just as the model auto-responds; `responseActiveRef`'s optimistic set covers most of it, but the
+window is the thing to watch when testing concurrency.
+
+---
+
 ### 2026-06-19 — fw5 verified on a real voice loop + deployed to Vercel (the v1 capstone works)
 
 The day's payoff: **the v1 voice loop works end-to-end on a live OpenAI Realtime mic session.** Tested

@@ -1898,3 +1898,18 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 18:35 — edmini / main
+
+**Last commit:** `2936381 docs: fw5 verified end-to-end on real voice + Vercel deploy`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

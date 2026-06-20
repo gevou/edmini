@@ -4,6 +4,18 @@
 `main` (git), in sync with origin. fw5 pt2 rewire landed `fcaf456`. Beads synced to the Dolt remote
 (`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
 
+## 9ex concurrent run narration — IMPLEMENTED, code-complete (2026-06-19)
+`edmini-9ex` closed + `needs-verification`. Lifted the one-active-run cap → **N concurrent runs**.
+New pure modules `src/lib/voice/run-registry.ts` (label↔runId, collision-suffix) +
+`narration-queue.ts` (source-agnostic priority queue). `/api/bus` dispatch persists `label`;
+`/api/session` tools take `label` (delegate_task/answer_run/cancel_run); `VoiceAgent.tsx` rewired
+(registry + queue + `userSpeakingRef`/`responseActiveRef` idle-gating; `tryDrain` on enqueue/
+response.done/speech_stopped). tsc clean, 73/73 tests, build passes; backend verified live on dev
+(`/api/session` requires label, dispatch persists `{"label":"sixes",…}`). PENDING: **live voice test**
+of concurrent narration (two labeled runs, priority, cancel/answer by label) — locally first, then
+redeploy prod (`vercel --prod`) to phone-test on edmini.vercel.app. Race to watch: speech_stopped
+drain vs model auto-response (see journal). Plan: `~/.claude/plans/buzzing-napping-puzzle.md`.
+
 ## 🎉 v1 voice loop VERIFIED end-to-end (2026-06-19)
 `edmini-fw5` → **`verified`**. Live localhost mic test: "Calculate 20×20" → Ed spoke "400" (full
 inbound narration ledger→Realtime→browser→speech); "cancel that" → `cancel_run` + Ed confirmed

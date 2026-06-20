@@ -27,14 +27,27 @@ beforeEach(() => {
 });
 
 describe("POST /api/bus", () => {
-  it("dispatch → creates a run, logs task_dispatch, returns runId", async () => {
+  it("dispatch → creates a run, logs task_dispatch with label, returns runId", async () => {
     dispatch.mockResolvedValue({ runId: "r1" });
-    const res = await POST(req({ action: "dispatch", instruction: "deploy the export" }));
+    const res = await POST(req({ action: "dispatch", instruction: "deploy the export", label: "export" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ runId: "r1" });
     expect(dispatch).toHaveBeenCalledWith("deploy the export");
     expect(append).toHaveBeenCalledWith(
-      expect.objectContaining({ runId: "r1", source: "edmini", kind: "task_dispatch" }),
+      expect.objectContaining({
+        runId: "r1",
+        source: "edmini",
+        kind: "task_dispatch",
+        payload: { instruction: "deploy the export", label: "export" },
+      }),
+    );
+  });
+
+  it("dispatch without a label persists label: null", async () => {
+    dispatch.mockResolvedValue({ runId: "r2" });
+    await POST(req({ action: "dispatch", instruction: "look something up" }));
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { instruction: "look something up", label: null } }),
     );
   });
 

@@ -23,40 +23,39 @@ Figure out which thread the User means from context — don't ask him to specify
 
 # Delegating work
 
-When the User asks for anything beyond conversation, call \`delegate_task\` with a clear, self-contained instruction for the harness. There is exactly ONE active run at a time. Say a short verbal ack ("On it.") while it runs — nothing more. Do NOT elaborate and do NOT claim you can't do something; the harness handles it in the background.
+When the User asks for anything beyond conversation, call \`delegate_task\` with a clear, self-contained instruction AND a short \`label\` — a one or two word handle for the task (e.g. "export", "vercel-research", "standup"). You can run MANY tasks at once; each gets its own label. Reuse that exact label whenever you refer to the task later. Say a short verbal ack ("On it.") while it runs — nothing more. Do NOT elaborate and do NOT claim you can't do something; the harness handles it in the background.
 
 Examples that SHOULD fire \`delegate_task\`:
-- "search for vercel workflows"
-- "look up the latest on durable execution"
-- "send a message to the team about the deploy"
-- "remind me about the standup at 9"
-- "schedule a coffee with Bob next Tuesday"
-- "add a task to review the export tests"
+- "search for vercel workflows" → label "vercel-workflows"
+- "look up the latest on durable execution" → label "durable-execution"
+- "send a message to the team about the deploy" → label "deploy-msg"
+- "remind me about the standup at 9" → label "standup"
 
 Examples that should NOT fire (stay in voice):
-- "what's happening with the TDS post" → thread status summary, handle directly
+- "what's happening with the export" → run status summary, handle directly
 - "thanks" / "got it" / "okay" / "cool" → conversational acknowledgment
 - "what did you just say" → repeat your last response
 
 # Background updates from the harness
 
-As the harness works, its updates (a clarifying question, a result, a failure, completion) are relayed to you as system notifications prefixed "(System update from the background task…)". When you receive one, relay it to the User naturally and briefly, in your own words — do NOT read it verbatim, and do NOT call a tool just because an update arrived.
+Each run works in the background. Its updates (a clarifying question, a result, a failure, completion) are relayed to you as system notifications that NAME the run by its label, e.g. "(System update — run 'export': …)". When you receive one, relay it to the User naturally and briefly, in your own words, mentioning which task it's about when more than one is in flight — do NOT read it verbatim, and do NOT call a tool just because an update arrived.
 
-# Mid-run actions
+# Mid-run actions (always identify the run by its label)
 
-- If the harness comes back blocked with a question and the User answers it, call \`answer_run\` with the User's answer so the run can continue.
-- If the User says "wait", "no", "stop", "cancel", "never mind", or otherwise revokes the task, call \`cancel_run\`.`;
+- If a run comes back blocked with a question and the User answers it, call \`answer_run\` with that run's \`label\` and the User's answer so the run can continue.
+- If the User revokes a task ("stop", "cancel", "never mind", "drop the export one"), call \`cancel_run\` with that run's \`label\`. Infer which label the User means from context.`;
 
   // Tool definitions sent to the Realtime session. The voice model decides when
   // to call these. They map to the three outbound bus actions; the client POSTs
   // them to /api/bus (dispatch/answer/cancel → Discord transport + ledger) and
-  // tracks the one active runId. See src/app/api/bus/route.ts and edmini-fw5.
+  // tracks N concurrent runs by label in a run registry. See src/app/api/bus/
+  // route.ts, src/lib/voice/run-registry.ts, and edmini-9ex.
   const tools = [
     {
       type: "function",
       name: "delegate_task",
       description:
-        "Delegate a task to the agent harness (the executor). Call this whenever the User asks for any action beyond conversation. Speak a brief verbal ack while it runs; the harness works in the background and its updates are relayed back to you as they arrive.",
+        "Delegate a task to the agent harness (the executor). Call this whenever the User asks for any action beyond conversation. Many tasks can run at once. Speak a brief verbal ack while it runs; the harness works in the background and its updates are relayed back to you (tagged by label) as they arrive.",
       parameters: {
         type: "object",
         properties: {
@@ -65,40 +64,53 @@ As the harness works, its updates (a clarifying question, a result, a failure, c
             description:
               "The full instruction to hand to the harness, in natural language. Self-contained — include everything the executor needs to act without further context.",
           },
+          label: {
+            type: "string",
+            description:
+              "A short one or two word handle for this task (e.g. 'export', 'vercel-research'). Used to refer to the run later in answer_run/cancel_run and in the updates relayed back to you. Pick something distinct and memorable.",
+          },
         },
-        required: ["instruction"],
+        required: ["instruction", "label"],
       },
     },
     {
       type: "function",
       name: "answer_run",
       description:
-        "Answer a question the active run asked. Call this when the harness came back blocked asking for clarification and the User has provided the answer, so the run can continue. Targets the one active run automatically.",
+        "Answer a question a blocked run asked. Call this when a run came back blocked asking for clarification and the User has provided the answer, so that run can continue.",
       parameters: {
         type: "object",
         properties: {
+          label: {
+            type: "string",
+            description: "The label of the run being answered (the one that asked the question).",
+          },
           text: {
             type: "string",
             description: "The User's answer to the run's question, in natural language.",
           },
         },
-        required: ["text"],
+        required: ["label", "text"],
       },
     },
     {
       type: "function",
       name: "cancel_run",
       description:
-        "Cancel the active run. Call this when the User says 'stop', 'cancel', 'never mind', 'wait, no', or otherwise revokes the current task. Targets the one active run automatically.",
+        "Cancel a run. Call this when the User says 'stop', 'cancel', 'never mind', 'drop the X one', or otherwise revokes a task. Identify which run by its label.",
       parameters: {
         type: "object",
         properties: {
+          label: {
+            type: "string",
+            description: "The label of the run to cancel (infer which one the User means from context).",
+          },
           reason: {
             type: "string",
             description: "Brief reason in the User's words (optional).",
           },
         },
-        required: [],
+        required: ["label"],
       },
     },
   ];
