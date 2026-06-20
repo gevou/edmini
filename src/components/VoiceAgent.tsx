@@ -182,54 +182,69 @@ export default function VoiceAgent() {
   if (!narrationQueueRef.current) narrationQueueRef.current = createNarrationQueue();
   const userSpeakingRef = useRef<boolean>(false);
   const responseActiveRef = useRef<boolean>(false);
+  // Outgoing `response.create` must be serialised: the Realtime API allows only ONE response in
+  // flight and rejects extras. Before serialising, two concurrent tool results both fired
+  // response.create → the second was rejected with no matching response.done, so responseActiveRef
+  // got stuck true and ALL narration went silent (edmini-9ex live-test failure). Tool results that
+  // arrive while a response is active queue here and fire when the current one ends.
+  const pendingToolResponsesRef = useRef<Array<() => void>>([]);
 
-  const sendToolResult = useCallback((callId: string, outputJson: string) => {
+  // Fire one response: send its conversation item(s), then response.create, marking a response in
+  // flight. Only call when responseActiveRef is false.
+  const fireResponse = useCallback((sendItems: () => void) => {
     const dc = dcRef.current;
     if (!dc || dc.readyState !== "open") return;
-    dc.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: callId,
-          output: outputJson,
-        },
-      }),
-    );
+    responseActiveRef.current = true;
+    sendItems();
     dc.send(JSON.stringify({ type: "response.create" }));
-    responseActiveRef.current = true; // a response is now in flight (cleared on response.done)
   }, []);
 
-  // Speak a batch of background updates as one utterance. Each item is prefixed with its run label
-  // ("Run 'export' failed — …") so Ed can name the task; framed so the model relays rather than
-  // reads verbatim. Triggers one response for the whole batch.
-  const injectNarration = useCallback((batch: NarrationBatch) => {
-    const dc = dcRef.current;
-    if (!dc || dc.readyState !== "open" || batch.length === 0) return;
-    const lines = batch
-      .map((i) => (i.label ? `Run '${i.label}' ${i.text}` : i.text))
-      .join(". ");
-    dc.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `(System update — relay to the User naturally and briefly, in your own words; name the task when more than one is in flight; do not read verbatim.) ${lines}`,
+  const sendToolResult = useCallback(
+    (callId: string, outputJson: string) => {
+      const sendOutput = () =>
+        dcRef.current?.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "function_call_output", call_id: callId, output: outputJson },
+          }),
+        );
+      if (responseActiveRef.current) pendingToolResponsesRef.current.push(sendOutput);
+      else fireResponse(sendOutput);
+    },
+    [fireResponse],
+  );
+
+  // Speak a batch of background updates as one utterance, each prefixed with its run label, framed so
+  // the model relays rather than reads verbatim. Only invoked from tryDrain when the channel is idle.
+  const injectNarration = useCallback(
+    (batch: NarrationBatch) => {
+      if (!dcRef.current || dcRef.current.readyState !== "open" || batch.length === 0) return;
+      const lines = batch
+        .map((i) => (i.label ? `Run '${i.label}' ${i.text}` : i.text))
+        .join(". ");
+      fireResponse(() =>
+        dcRef.current?.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+              type: "message",
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: `(System update — relay to the User naturally and briefly, in your own words; name the task when more than one is in flight; do not read verbatim.) ${lines}`,
+                },
+              ],
             },
-          ],
-        },
-      }),
-    );
-    dc.send(JSON.stringify({ type: "response.create" }));
-    responseActiveRef.current = true;
-  }, []);
+          }),
+        ),
+      );
+    },
+    [fireResponse],
+  );
 
   // Drain the narration queue if the channel is idle (open, User not speaking, no response in
-  // flight). Re-called whenever idle state may have changed: new enqueue, response.done, user pause.
+  // flight). Re-called whenever idle state may have changed: new enqueue, response end, user pause.
   const tryDrain = useCallback(() => {
     const dc = dcRef.current;
     const canSpeak =
@@ -237,6 +252,15 @@ export default function VoiceAgent() {
     const batch = narrationQueueRef.current!.drain(canSpeak);
     if (batch) injectNarration(batch);
   }, [injectNarration]);
+
+  // A response finished OR was rejected (error). Clear the in-flight flag, then fire the next queued
+  // tool-result response if any, else try a narration batch. This is what unsticks the channel.
+  const onResponseEnded = useCallback(() => {
+    responseActiveRef.current = false;
+    const next = pendingToolResponsesRef.current.shift();
+    if (next) fireResponse(next);
+    else tryDrain();
+  }, [fireResponse, tryDrain]);
 
   // An interpreted harness event for one of our runs → enqueue a narration item (by label).
   // run_done/run_failed close the run out of the registry; everything else updates its status.
@@ -474,8 +498,14 @@ export default function VoiceAgent() {
     if (type === "response.done") {
       setStatus("listening");
       modelSpeakingFlagRef.current = false;
-      responseActiveRef.current = false;
-      tryDrain(); // response finished → drain the next queued update if any
+      onResponseEnded(); // clear in-flight, fire next queued response / drain narration
+    }
+    // A rejected response.create (e.g. "conversation already has an active response") arrives as an
+    // error with no response.done — recover so the channel doesn't stay stuck silent.
+    if (type === "error") {
+      const err = serverEvent.error as { message?: string } | undefined;
+      pushEvent({ kind: "error", label: "Realtime error", detail: err?.message ?? JSON.stringify(serverEvent).slice(0, 120) });
+      onResponseEnded();
     }
 
     // Tool call from the voice model — route to the supervisor via SSE
@@ -570,7 +600,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall, tryDrain, logVoiceOutput]);
+  }, [postTurnToThread, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
@@ -667,6 +697,7 @@ export default function VoiceAgent() {
     ledgerChannelRef.current = null;
     runRegistryRef.current = createRunRegistry();
     narrationQueueRef.current = createNarrationQueue();
+    pendingToolResponsesRef.current = [];
     userSpeakingRef.current = false;
     responseActiveRef.current = false;
     dcRef.current?.close();
