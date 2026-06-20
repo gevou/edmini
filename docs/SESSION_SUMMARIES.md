@@ -2030,3 +2030,84 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:26 — edmini / main
+
+**Last commit:** `69979a7 feat(rv9): log edmini's voice output to the ledger (edmini→user crossing)`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:30 — edmini / main
+
+**Last commit:** `69979a7 feat(rv9): log edmini's voice output to the ledger (edmini→user crossing)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:40 — edmini / main
+
+**Last commit:** `2cffd7d fix(9ex): serialize response.create so concurrent runs don't silence Ed`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:42 — edmini / main
+
+**Last commit:** `2cffd7d fix(9ex): serialize response.create so concurrent runs don't silence Ed`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

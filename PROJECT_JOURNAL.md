@@ -20,6 +20,36 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — a misdiagnosis the user caught: "Ed was silent" was a stale bundle, not a bug
+
+A clean lesson in not over-reading logs. After a 9ex test showed two runs dispatched + answered but
+**no `voice_output` and no `model_speaking`**, I concluded Ed had gone silent and pinned it on a
+`response.create` race (concurrent dispatches → second response rejected → `responseActiveRef` stuck
+true → narration never drains). I shipped a serialization fix and reopened 9ex as failed.
+
+The user pushed back: *"could it be stale f/e client again?"* — and they were right. The hole in my
+reasoning: **no `voice_output` is equally explained by a cached pre-rv9 bundle** (which dispatches and
+narrates identically but lacks `logVoiceOutput`), and my `model_speaking=0` evidence came from the
+**serverless event log, which fragments and is unreliable**. Asked directly, the user confirmed:
+*"yes I did hear ed say the results."* So 9ex narration **works** — Ed narrated both labeled runs by
+ear. The missing ledger rows were the old bundle, not silence.
+
+Takeaways:
+- The reliable signal (ledger `voice_output` absence) was ambiguous between two hypotheses; I treated
+  it as decisive. The unreliable signal (prod event log) I leaned on too hard. The one fact that
+  disambiguated — *did you hear Ed?* — I should have asked first.
+- The serialization fix (`2cffd7d`: `fireResponse` / `pendingToolResponses` / `onResponseEnded`,
+  clearing on `error` too) **stays** — concurrent `response.create` really is API-rejected, so it's
+  correct latent-bug hardening. It just wasn't the thing that bit us.
+- Stale/open-tab bundles have now caused confusion three times. Fixed the root annoyance: a **build
+  id** (`edmini-0t0`) — `next.config.ts` injects `NEXT_PUBLIC_BUILD_ID` (Vercel commit SHA, else a dev
+  timestamp), shown in the header (`voice agent · <id>`) and logged on session start. Now "which
+  bundle are you on" is answerable at a glance instead of by inference. The HTML cache headers were
+  already correct (`max-age=0, must-revalidate`); the culprit is open tabs holding old JS in memory,
+  so the guidance is *close-and-reopen*, not just reload.
+
+---
+
 ### 2026-06-19 — closed the accountability gap: edmini's voice output now hits the ledger (rv9)
 
 Surfaced while verifying 9ex. The user asked, pointedly, *"Why are you asking me this? can't you read

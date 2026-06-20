@@ -37,6 +37,8 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
+// Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
 
 function MicIcon() {
   return (
@@ -614,7 +616,7 @@ export default function VoiceAgent() {
     pushEvent({
       kind: "session_started",
       label: "Voice session started",
-      detail: newSessionId,
+      detail: `${newSessionId} · build ${BUILD_ID}`,
     });
 
     try {
@@ -772,7 +774,7 @@ export default function VoiceAgent() {
             Ed
           </h1>
           <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
-            voice agent
+            voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
           </p>
         </div>
         {apiKey !== "__server__" && <button
