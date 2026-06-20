@@ -1,9 +1,23 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import EventLogPanel from "@/components/EventLogPanel";
 import { pushEvent } from "@/lib/event-log-store";
-import type { SupervisorResponse } from "@/supervisor";
+import type { LedgerEvent } from "@/lib/ledger";
+import { ledgerFromEnv } from "@/lib/ledger-supabase";
+
+/**
+ * Map the active run's interpreted ledger events to a one-line summary that Ed
+ * narrates to the User. Only harness-sourced lifecycle kinds are surfaced; raw
+ * discord_message rows and outbound (edmini) events are ignored.
+ */
+const NARRATE_KINDS: Record<string, (p: Record<string, unknown>) => string> = {
+  run_blocked: (p) => `The task is asking: ${(p.question as string) ?? ""}`,
+  run_output: (p) => `The task reported back: ${(p.text as string) ?? ""}`,
+  run_failed: (p) => `The task failed: ${(p.error as string) ?? ""}`,
+  run_done: (p) => `The task finished: ${(p.summary as string) ?? ""}`,
+};
 
 interface Turn {
   id: number;
@@ -150,6 +164,10 @@ export default function VoiceAgent() {
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
+  // The single active run (Discord thread id) the voice layer is supervising.
+  // delegate_task sets it; answer_run/cancel_run target it; run_done/run_failed clear it.
+  const activeRunIdRef = useRef<string | null>(null);
+  const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
 
   const sendToolResult = useCallback((callId: string, outputJson: string) => {
     const dc = dcRef.current;
@@ -167,79 +185,131 @@ export default function VoiceAgent() {
     dc.send(JSON.stringify({ type: "response.create" }));
   }, []);
 
+  // Inject a background update into the live session so Ed speaks it. Uses a
+  // user-role message (the reliable proactive-speech path) framed so the model
+  // relays it rather than reading it verbatim, then triggers a response.
+  const injectNarration = useCallback((text: string) => {
+    const dc = dcRef.current;
+    if (!dc || dc.readyState !== "open") return;
+    dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `(System update from the background task — relay this to the User naturally in your own words, briefly; do not read it verbatim.) ${text}`,
+            },
+          ],
+        },
+      }),
+    );
+    dc.send(JSON.stringify({ type: "response.create" }));
+  }, []);
+
+  // Narrate a ledger event for the active run. Inbound (harness) lifecycle
+  // events only; run_done/run_failed also close out the active run.
+  const handleLedgerEvent = useCallback(
+    (event: LedgerEvent) => {
+      if (event.source !== "harness") return;
+      if (!event.runId || event.runId !== activeRunIdRef.current) return;
+      const render = NARRATE_KINDS[event.kind];
+      if (!render) return;
+      const summary = render(event.payload);
+      pushEvent({
+        kind: event.kind === "run_failed" ? "failed" : event.kind === "run_done" ? "completed" : "info",
+        label: `Run update: ${event.kind}`,
+        detail: summary,
+      });
+      if (event.kind === "run_done" || event.kind === "run_failed") {
+        activeRunIdRef.current = null;
+      }
+      injectNarration(summary);
+    },
+    [injectNarration],
+  );
+
   const dispatchToolCall = useCallback(
     async (callId: string, name: string, args: Record<string, unknown>) => {
-      if (name === "classify_and_route") {
-        pushEvent({
-          kind: "info",
-          label: "Tool call: classify_and_route",
-          detail:
-            typeof args.transcript === "string"
-              ? args.transcript
-              : "(no transcript)",
+      const callBus = async (body: Record<string, unknown>) => {
+        const res = await fetch("/api/bus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         });
-        try {
-          const res = await fetch("/api/intent/classify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              transcript: args.transcript ?? "",
-              sessionId: sessionIdRef.current ?? "anonymous",
-              context: args.context
-                ? { metadata: { hint: args.context } }
-                : undefined,
-            }),
-          });
-          // Supervisor events flow through the server event store + SSE now,
-          // so the response is a plain JSON SupervisorResponse — no stream
-          // parsing required here.
-          const result = res.ok
-            ? ((await res.json()) as SupervisorResponse)
-            : null;
-          sendToolResult(
-            callId,
-            JSON.stringify(
-              result ?? { error: "supervisor returned no result" },
-            ),
-          );
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          pushEvent({ kind: "error", label: "Tool fetch failed", detail: message });
-          sendToolResult(callId, JSON.stringify({ error: message }));
-        }
-        return;
-      }
+        const data = (res.ok ? await res.json() : { error: await res.text() }) as Record<
+          string,
+          unknown
+        >;
+        return { ok: res.ok, data };
+      };
 
-      if (name === "cancel_pending_action") {
+      try {
+        if (name === "delegate_task") {
+          const instruction =
+            typeof args.instruction === "string" ? args.instruction : "";
+          pushEvent({
+            kind: "dispatched",
+            label: "Tool call: delegate_task",
+            detail: instruction || "(no instruction)",
+          });
+          const { ok, data } = await callBus({ action: "dispatch", instruction });
+          if (ok && typeof data.runId === "string") {
+            activeRunIdRef.current = data.runId;
+            pushEvent({
+              kind: "awaiting",
+              label: "Run dispatched",
+              detail: `run ${data.runId}`,
+            });
+          }
+          sendToolResult(callId, JSON.stringify(data));
+          return;
+        }
+
+        if (name === "answer_run") {
+          const runId = activeRunIdRef.current;
+          const text = typeof args.text === "string" ? args.text : "";
+          pushEvent({ kind: "info", label: "Tool call: answer_run", detail: text });
+          if (!runId) {
+            sendToolResult(callId, JSON.stringify({ error: "no active run to answer" }));
+            return;
+          }
+          const { data } = await callBus({ action: "answer", runId, text });
+          sendToolResult(callId, JSON.stringify(data));
+          return;
+        }
+
+        if (name === "cancel_run") {
+          const runId = activeRunIdRef.current;
+          const reason = typeof args.reason === "string" ? args.reason : undefined;
+          pushEvent({
+            kind: "cancelled",
+            label: "Tool call: cancel_run",
+            detail: reason ?? "(no reason given)",
+          });
+          if (!runId) {
+            sendToolResult(callId, JSON.stringify({ error: "no active run to cancel" }));
+            return;
+          }
+          const { data } = await callBus({ action: "cancel", runId, reason });
+          activeRunIdRef.current = null;
+          sendToolResult(callId, JSON.stringify(data));
+          return;
+        }
+
         pushEvent({
-          kind: "info",
-          label: "Tool call: cancel_pending_action",
+          kind: "error",
+          label: `Unknown tool call: ${name}`,
           payload: args,
         });
-        // Noop — would route to /api/intent/cancel once implemented.
-        pushEvent({
-          kind: "cancelled",
-          label: `Cancelled: ${(args.actionId as string) ?? "(unknown)"}`,
-          detail:
-            typeof args.reason === "string" ? args.reason : "no reason given",
-        });
-        sendToolResult(
-          callId,
-          JSON.stringify({
-            acknowledged: true,
-            actionId: args.actionId,
-            reason: args.reason,
-          }),
-        );
-        return;
+        sendToolResult(callId, JSON.stringify({ error: `unknown tool ${name}` }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        pushEvent({ kind: "error", label: "Bus call failed", detail: message });
+        sendToolResult(callId, JSON.stringify({ error: message }));
       }
-
-      pushEvent({
-        kind: "error",
-        label: `Unknown tool call: ${name}`,
-        payload: args,
-      });
-      sendToolResult(callId, JSON.stringify({ error: `unknown tool ${name}` }));
     },
     [sendToolResult],
   );
@@ -482,6 +552,18 @@ export default function VoiceAgent() {
       dcRef.current = dc;
       dc.onmessage = handleDataChannelMessage;
 
+      // Subscribe the browser to the ledger so inbound harness events for the
+      // active run get narrated into the live session (the Narrate half).
+      try {
+        ledgerChannelRef.current = ledgerFromEnv().subscribe(handleLedgerEvent);
+      } catch (err) {
+        pushEvent({
+          kind: "error",
+          label: "Ledger subscribe failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -503,7 +585,7 @@ export default function VoiceAgent() {
       setStatus("error");
       stopSession();
     }
-  }, [handleDataChannelMessage, apiKey]);
+  }, [handleDataChannelMessage, handleLedgerEvent, apiKey]);
 
   const stopSession = useCallback(() => {
     const activeId = currentTurnIdRef.current;
@@ -515,6 +597,9 @@ export default function VoiceAgent() {
         )
       );
     }
+    ledgerChannelRef.current?.unsubscribe();
+    ledgerChannelRef.current = null;
+    activeRunIdRef.current = null;
     dcRef.current?.close();
     pcRef.current?.close();
     dcRef.current = null;

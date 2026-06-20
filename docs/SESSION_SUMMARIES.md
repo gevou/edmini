@@ -1368,3 +1368,352 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 01:43 — edmini / main
+
+**Last commit:** `a57630d fix(infra+deps): pnpm 9 via corepack + @supabase/supabase-js; Hermes config.yaml precedence fix`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 12:31 — edmini / main
+
+**Last commit:** `a57630d fix(infra+deps): pnpm 9 via corepack + @supabase/supabase-js; Hermes config.yaml precedence fix`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 14:40 — edmini / main
+
+**Last commit:** `a57630d fix(infra+deps): pnpm 9 via corepack + @supabase/supabase-js; Hermes config.yaml precedence fix`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 14:44 — edmini / main
+
+**Last commit:** `0e87286 fix(infra): authorize bus users in Hermes (allow_all_users) — ✓-react-no-reply cause`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 14:56 — edmini / main
+
+**Last commit:** `95e4815 fix(infra): Hermes user-auth is ENV-gated — DISCORD_ALLOW_BOTS=all + DISCORD_ALLOW_ALL_USERS`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 14:59 — edmini / main
+
+**Last commit:** `95e4815 fix(infra): Hermes user-auth is ENV-gated — DISCORD_ALLOW_BOTS=all + DISCORD_ALLOW_ALL_USERS`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 15:01 — edmini / main
+
+**Last commit:** `95e4815 fix(infra): Hermes user-auth is ENV-gated — DISCORD_ALLOW_BOTS=all + DISCORD_ALLOW_ALL_USERS`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/hermes/capture-fixtures.py`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 15:02 — edmini / main
+
+**Last commit:** `95e4815 fix(infra): Hermes user-auth is ENV-gated — DISCORD_ALLOW_BOTS=all + DISCORD_ALLOW_ALL_USERS`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `infra/hermes/capture-fixtures.py`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 15:11 — edmini / main
+
+**Last commit:** `f052434 feat(pmo): verify bot→Hermes bus path + capture interpreter fixtures`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 15:23 — edmini / main
+
+**Last commit:** `a935e2d feat(yak): Supabase ledger client binding (append/snapshot/subscribe)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 15:28 — edmini / main
+
+**Last commit:** `c68d25d feat(n12): bus transport interface + Discord outbound transport`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:19 — edmini / main
+
+**Last commit:** `2367a24 feat(dze): inbound interpreter — marker-deterministic + LLM fallback`
+
+### Modified files
+- `.vercelignore`
+- `docs/SESSION_SUMMARIES.md`
+- `package.json`
+- `pnpm-lock.yaml`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `_smoke_2y7.ts`
+- `mission-control.html`
+- `worker/index.ts`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:25 — edmini / main
+
+**Last commit:** `0629123 docs: checkpoint — inbound+outbound bus built (yak/n12/dze/2y7); journal in new pragmatic style`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:28 — edmini / main
+
+**Last commit:** `0629123 docs: checkpoint — inbound+outbound bus built (yak/n12/dze/2y7); journal in new pragmatic style`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:30 — edmini / main
+
+**Last commit:** `0629123 docs: checkpoint — inbound+outbound bus built (yak/n12/dze/2y7); journal in new pragmatic style`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+- `src/lib/bus/__tests__/discord-transport.test.ts`
+- `src/lib/bus/discord-transport.ts`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `_smoke_oys.ts`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:35 — edmini / main
+
+**Last commit:** `ab5f3c4 feat(fw5 pt1): outbound bus API (/api/bus) — dispatch/answer/cancel + ledger log`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:45 — edmini / main
+
+**Last commit:** `85c42aa docs: checkpoint — oys + fw5 pt1 done; next-session handoff for fw5 pt2 (voice rewire)`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:56 — edmini / main
+
+**Last commit:** `bc9af53 docs: archive narrative journal entries to docs/journal-archive.md`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 16:58 — edmini / main
+
+**Last commit:** `8d7c071 docs: refine journal guidance — rich raw material, specifics + quotes, not the blog post`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

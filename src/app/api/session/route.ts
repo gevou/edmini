@@ -14,87 +14,91 @@ export async function POST(request: Request) {
 
   const threadContext = getSystemPromptContext();
 
-  const instructions = `You are Ed, a voice-first agent coordinator. You help the User manage multiple parallel workstreams through natural conversation.
+  const instructions = `You are Ed, a voice-first agent coordinator. You delegate the User's tasks to an autonomous agent harness (the executor that actually does the work — research, lookups, messages, scheduling, ops) and keep the User informed as the harness works. You coordinate; you do NOT do the work yourself.
 
 Current threads:
 ${threadContext}
 
-When the User speaks, figure out which thread he's referring to from context — don't ask him to specify unless it's genuinely ambiguous. Summarize thread states when asked "what's happening" or similar. Update thread status based on decisions made in conversation.
+Figure out which thread the User means from context — don't ask him to specify unless it's genuinely ambiguous. Summarize thread states when asked "what's happening" or similar. Keep responses concise and conversational — you're a colleague, not a butler.
 
-Keep responses concise and conversational — you're a colleague, not a butler.
+# Delegating work
 
-# Tool use
+When the User asks for anything beyond conversation, call \`delegate_task\` with a clear, self-contained instruction for the harness. There is exactly ONE active run at a time. Say a short verbal ack ("On it.") while it runs — nothing more. Do NOT elaborate and do NOT claim you can't do something; the harness handles it in the background.
 
-## When to call \`classify_and_route\`
-
-Call this function for ANY utterance that asks for action beyond pure conversation — even if you're not 100% sure. The supervisor handles uncertainty gracefully; under-firing is worse than over-firing.
-
-Examples that SHOULD fire \`classify_and_route\`:
+Examples that SHOULD fire \`delegate_task\`:
 - "search for vercel workflows"
 - "look up the latest on durable execution"
 - "send a message to the team about the deploy"
 - "remind me about the standup at 9"
 - "schedule a coffee with Bob next Tuesday"
 - "add a task to review the export tests"
-- "what's the latest on X" (when X needs a fresh lookup, not just thread state)
 
 Examples that should NOT fire (stay in voice):
 - "what's happening with the TDS post" → thread status summary, handle directly
 - "thanks" / "got it" / "okay" / "cool" → conversational acknowledgment
 - "what did you just say" → repeat your last response
-- "tell me more about that" → continue the current topic
 
-Call the tool immediately. You may say a one-word filler like "Sure" while calling it, but nothing more. Once the tool result arrives, read the \`ack\` field and speak it naturally as your full response. Do NOT elaborate, do NOT say you can't do something — the task is handled in the background.
+# Background updates from the harness
 
-## When to call \`cancel_pending_action\`
+As the harness works, its updates (a clarifying question, a result, a failure, completion) are relayed to you as system notifications prefixed "(System update from the background task…)". When you receive one, relay it to the User naturally and briefly, in your own words — do NOT read it verbatim, and do NOT call a tool just because an update arrived.
 
-If the User says "wait", "no", "stop", "actually change that to…", or otherwise revokes the most recent task, call \`cancel_pending_action\` with the most recent actionId.
+# Mid-run actions
 
-If you don't remember the most recent actionId, just acknowledge the cancellation verbally — the supervisor will infer from session context.`;
+- If the harness comes back blocked with a question and the User answers it, call \`answer_run\` with the User's answer so the run can continue.
+- If the User says "wait", "no", "stop", "cancel", "never mind", or otherwise revokes the task, call \`cancel_run\`.`;
 
-  // Tool definitions sent to the Realtime session. The voice model will
-  // decide when to call these based on user utterances. Both currently route
-  // to the supervisor (src/supervisor/), which is a noop today — see
-  // src/supervisor/README.md for the roadmap.
+  // Tool definitions sent to the Realtime session. The voice model decides when
+  // to call these. They map to the three outbound bus actions; the client POSTs
+  // them to /api/bus (dispatch/answer/cancel → Discord transport + ledger) and
+  // tracks the one active runId. See src/app/api/bus/route.ts and edmini-fw5.
   const tools = [
     {
       type: "function",
-      name: "classify_and_route",
+      name: "delegate_task",
       description:
-        "Classify the user's most recent utterance and dispatch any side-effects (calendar, message, query, etc.). Call this when the user expresses a task intent (anything beyond casual conversation). Speak a short verbal ack while this runs — the result will be available shortly.",
+        "Delegate a task to the agent harness (the executor). Call this whenever the User asks for any action beyond conversation. Speak a brief verbal ack while it runs; the harness works in the background and its updates are relayed back to you as they arrive.",
       parameters: {
         type: "object",
         properties: {
-          transcript: {
+          instruction: {
             type: "string",
-            description: "The user's utterance to classify.",
-          },
-          context: {
-            type: "string",
-            description: "Optional brief context about the surrounding conversation.",
+            description:
+              "The full instruction to hand to the harness, in natural language. Self-contained — include everything the executor needs to act without further context.",
           },
         },
-        required: ["transcript"],
+        required: ["instruction"],
       },
     },
     {
       type: "function",
-      name: "cancel_pending_action",
+      name: "answer_run",
       description:
-        "Cancel an in-flight action (returned actionId from a previous classify_and_route). Call this when the user says 'wait', 'no', 'stop', 'change that to…', or otherwise revokes a prior request.",
+        "Answer a question the active run asked. Call this when the harness came back blocked asking for clarification and the User has provided the answer, so the run can continue. Targets the one active run automatically.",
       parameters: {
         type: "object",
         properties: {
-          actionId: {
+          text: {
             type: "string",
-            description: "The actionId returned from a prior tool call.",
-          },
-          reason: {
-            type: "string",
-            description: "Brief reason in the user's words.",
+            description: "The User's answer to the run's question, in natural language.",
           },
         },
-        required: ["actionId"],
+        required: ["text"],
+      },
+    },
+    {
+      type: "function",
+      name: "cancel_run",
+      description:
+        "Cancel the active run. Call this when the User says 'stop', 'cancel', 'never mind', 'wait, no', or otherwise revokes the current task. Targets the one active run automatically.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: {
+            type: "string",
+            description: "Brief reason in the User's words (optional).",
+          },
+        },
+        required: [],
       },
     },
   ];
