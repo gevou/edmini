@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Syne, DM_Sans } from "next/font/google";
-import SwRegistration from "@/components/SwRegistration";
+import SwCleanup from "@/components/SwCleanup";
 import "./globals.css";
 
 const syne = Syne({
@@ -59,7 +59,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-[#09090f] text-white antialiased font-sans">
-        <SwRegistration />
+        <SwCleanup />
         {children}
       </body>
     </html>
