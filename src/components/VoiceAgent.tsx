@@ -893,7 +893,14 @@ export default function VoiceAgent() {
                     className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-bl-sm text-white/90 ${turn.edStreaming ? "opacity-60" : ""}`}
                     style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
                   >
-                    {turn.edText}
+                    {turn.spokenIndex !== undefined && turn.spokenIndex < turn.edText.length ? (
+                      <>
+                        <span>{turn.edText.slice(0, turn.spokenIndex)}</span>
+                        <span className="text-white/35">{turn.edText.slice(turn.spokenIndex)}</span>
+                      </>
+                    ) : (
+                      turn.edText
+                    )}
                     {turn.edStreaming && (
                       <span className="inline-block w-1 h-3 ml-1 bg-current rounded-full align-middle" style={{ animation: "pulse 1s ease-in-out infinite" }} />
                     )}
