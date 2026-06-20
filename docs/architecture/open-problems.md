@@ -5,6 +5,29 @@ Rough outlines of problems we know we'll need to design, captured so they aren't
 
 ---
 
+## Command approval — can edmini relay Hermes's approval requests by voice?
+
+**Status:** open question (2026-06-20) · bead `edmini-vig`
+
+Hermes asks for **command approval** on Discord (e.g. before running a shell command). Conceptually
+this is a *specialization of `run_blocked`* — a yes/no the agent needs to proceed. So the existing flow
+already fits: worker interprets it → edmini narrates *"the agent wants to run `X` — approve?"* → user
+says yes → `answer_run(label, "yes")` posts the approval to the thread. **So yes, edmini can handle it**,
+with three caveats:
+
+- **Native approval vs text.** `answer_run` posts a *text* reply. If Hermes accepts "yes"/"approve" text,
+  done. If it requires a **button click or ✅ reaction**, the Discord transport must gain
+  reaction/button support (the harness adapter's job — see §4.2). Need to check how Hermes actually
+  asks for approval (text prompt vs Discord component).
+- **Classification.** The interpreter must reliably catch approval requests as `run_blocked` — high
+  stakes, since misclassifying as progress would silently *skip a security gate*. Likely a dedicated
+  marker (Hermes may prefix approval requests) over the fuzzy LLM.
+- **Safety.** This is a **security boundary**: narrate the *full* command clearly and require an
+  EXPLICIT voice confirmation (not a casual "yeah"); consider a stricter/destructive-command path. Here,
+  over-confirming is correct — the faithfulness/confirm-before-acting principles apply doubly.
+
+---
+
 ## Run lifecycle: is "tool call" the wrong frame for a long-running agent run?
 
 **Status:** open question (2026-06-20)

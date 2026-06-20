@@ -2475,3 +2475,18 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-20 00:54 — edmini / main
+
+**Last commit:** `4611dd8 docs: close v1 epic; checkpoint — memory/rehydration (iee), mb0 highlight (78z), threads UI (zo8)`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
