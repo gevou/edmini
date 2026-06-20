@@ -1717,3 +1717,97 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 17:15 — edmini / main
+
+**Last commit:** `fcaf456 feat(fw5 pt2): VoiceAgent rewire — v1 voice capstone`
+
+### Modified files
+- `PROJECT_STATUS.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 17:17 — edmini / main
+
+**Last commit:** `fcaf456 feat(fw5 pt2): VoiceAgent rewire — v1 voice capstone`
+
+### Modified files
+- `PROJECT_STATUS.md`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 17:18 — edmini / main
+
+**Last commit:** `fcaf456 feat(fw5 pt2): VoiceAgent rewire — v1 voice capstone`
+
+### Modified files
+- `PROJECT_STATUS.md`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 17:29 — edmini / main
+
+**Last commit:** `fcaf456 feat(fw5 pt2): VoiceAgent rewire — v1 voice capstone`
+
+### Modified files
+- `PROJECT_STATUS.md`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 17:39 — edmini / main
+
+**Last commit:** `fcaf456 feat(fw5 pt2): VoiceAgent rewire — v1 voice capstone`
+
+### Modified files
+- `PROJECT_STATUS.md`
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*

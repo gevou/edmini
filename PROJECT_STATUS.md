@@ -1,8 +1,24 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest infra commit `8181556`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. fw5 pt2 rewire landed `fcaf456`. Beads synced to the Dolt remote
 (`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
+
+## ACTIVE (2026-06-19): concurrent run narration (`edmini-9ex`) — spec approved, planning next
+fw5 pt2 shipped a **one-active-run** voice layer (single `activeRunId`, other runs' events ignored).
+In review the user dismantled the justification: "voice is serial" constrains only the edmini↔user
+**output channel**, not run **cardinality** — and there is no seriality at all on edmini↔executor.
+Decision: lift the cap. The voice layer will supervise **N concurrent runs**, addressed by
+**model-chosen human-friendly labels** (`delegate_task/answer_run/cancel_run` take a `label`), with a
+**priority narration queue** (run_blocked/run_failed high, run_output/run_done low) that never
+interrupts the user and batches near-simultaneous items. Labels are **persisted in the
+`task_dispatch` ledger payload** (registry = cache/projection; rehydrate-on-reload deferred but data
+exists). Narration queue kept **source-agnostic** to leave room for a future **invoker** inbound role
+(email/IoT/webhook → run-less events) without rework. Spec:
+`docs/superpowers/specs/2026-06-19-concurrent-run-narration-design.md`. NEXT: writing-plans →
+implement (new `src/lib/voice/run-registry.ts` + `narration-queue.ts`, rewire `VoiceAgent.tsx`,
+add `label` to `/api/bus` dispatch + `/api/session` tools). `fw5` stays closed/`needs-verification`;
+9ex supersedes its single-run behavior.
 
 ## Where we are (2026-06-18)
 Building **v1: a voice supervisor over an agent harness** (epic `edmini-orm`). Design + plan are
@@ -57,21 +73,23 @@ done; tonight was foundations + reproducible infra + live provisioning.
 - `edmini-fw5` part 1 ✓ outbound API: `src/app/api/bus/route.ts` (`POST /api/bus` dispatch/answer/
   cancel → transport + ledger). 60 tests, tsc clean, build passes.
 
-## NEXT SESSION — start here: `edmini-fw5` part 2 (voice rewire, the v1 capstone)
-The whole backend (bus + ledger + worker + interpreter + outbound API) is built & live-verified.
-Only the VoiceAgent client rewire remains. Three steps, then v1 is done:
-1. **Realtime tools** — in `src/app/api/session/route.ts` replace `classify_and_route` /
-   `cancel_pending_action` with `delegate_task(instruction)` / `answer_run(text)` / `cancel_run()`;
-   in `src/components/VoiceAgent.tsx` make `dispatchToolCall` POST to `/api/bus` and track
-   `activeRunId` (one active run; `delegate_task` sets it from the returned `runId`).
-2. **Narrate (inbound)** — in `VoiceAgent.tsx` subscribe the browser to Supabase Realtime
-   (`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, both in `.env.local`) using
-   `createLedger().subscribe()`; on events for `activeRunId` with kind `run_blocked` / `run_output`
-   / `run_failed`, inject into the live session via `conversation.item.create` + `response.create`
-   (reuse the `sendToolResult` data-channel pattern) so edmini speaks them.
-3. **Manual voice test** — run `pnpm dev` (app) + `pnpm worker` (bus worker) + `hermes gateway` (or
-   it's the launchd service). Speak → edmini `delegate_task` → Discord thread → Hermes replies →
-   worker → ledger → Realtime → edmini speaks it. (Hermes is single-task; expect ~6–60s replies.)
+### fw5 part 2 — voice rewire DONE, code-complete (2026-06-19, commit `fcaf456`)
+`edmini-fw5` ✓ closed + `needs-verification`. The v1 voice capstone is wired end-to-end in code;
+all three planned steps are landed except the live mic test (the verification gate):
+1. **Realtime tools ✓** — `src/app/api/session/route.ts`: `classify_and_route`/`cancel_pending_action`
+   replaced with `delegate_task(instruction)` / `answer_run(text)` / `cancel_run(reason?)`; instructions
+   describe the one-active-run delegate→harness model + background narration. `VoiceAgent.tsx`:
+   `dispatchToolCall` POSTs `/api/bus`; `activeRunIdRef` set on dispatch, used by answer/cancel.
+2. **Narrate (inbound) ✓** — `VoiceAgent.tsx` subscribes the browser via `ledgerFromEnv().subscribe()`
+   on session start (anon key from `NEXT_PUBLIC_SUPABASE_*`; RLS is OFF on `events` so anon Realtime
+   delivery works). `handleLedgerEvent` filters to `source==="harness"` + `runId===activeRunId`,
+   narrates `run_blocked/run_output/run_failed/run_done` via `injectNarration` (user-role
+   `conversation.item.create` + `response.create`). `run_done`/`run_failed` clear `activeRunId`.
+3. **Manual voice test — PENDING (only remaining item for v1).** Run `pnpm dev` + `pnpm worker` +
+   `hermes gateway` (launchd). Speak → `delegate_task` → Discord thread → Hermes → worker → ledger →
+   Realtime → Ed speaks it. Hermes is single-task; expect ~6–60s replies. After verifying on device,
+   remove the `needs-verification` label from `edmini-fw5` (`bd label remove edmini-fw5 needs-verification`)
+   and add `verified`.
 
 To run the bus worker: `pnpm worker`. To re-provision infra if needed: `./infra/up.sh` (1Password
 must be unlocked). Ledger queries: `SUPABASE_DB_URL` is in `infra/supabase/project.env` (not .env.local).
