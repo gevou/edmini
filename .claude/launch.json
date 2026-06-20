@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "edmini-dev",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm", "dev"],
+      "autoPort": true
+    },
+    {
+      "name": "edmini-prod",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm", "start"],
+      "autoPort": true
+    }
+  ]
+}

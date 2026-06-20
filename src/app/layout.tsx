@@ -44,6 +44,19 @@ export default function RootLayout({
     <html lang="en" className={`${syne.variable} ${dmSans.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/apple-icon.png" />
+        {/* Self-heal on a stale chunk (ChunkLoadError) after a deploy: reload once to the fresh
+            build. Registered as an early inline script so it fires even if the failing chunk is the
+            page itself (before React mounts). The 12s guard prevents reload loops. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+  function isChunkErr(m){return !!m&&/Loading chunk|ChunkLoadError|Loading CSS chunk|dynamically imported module|module script failed/i.test(m);}
+  function reloadOnce(){try{var k="__ed_chunk_reload",last=+sessionStorage.getItem(k)||0;if(Date.now()-last<12000)return;sessionStorage.setItem(k,""+Date.now());}catch(e){}location.reload();}
+  addEventListener("error",function(e){var er=e&&e.error;if(isChunkErr(e&&e.message)||isChunkErr(er&&er.name)||isChunkErr(er&&er.message))reloadOnce();},true);
+  addEventListener("unhandledrejection",function(e){var r=e&&e.reason;if(isChunkErr(r&&r.name)||isChunkErr(r&&r.message))reloadOnce();});
+})();`,
+          }}
+        />
       </head>
       <body className="bg-[#09090f] text-white antialiased font-sans">
         <SwRegistration />

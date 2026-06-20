@@ -2111,3 +2111,43 @@
 - `mission-control.html`
 
 > *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 20:51 — edmini / main
+
+**Last commit:** `88c5e7e feat(0t0): surface build id in the voice UI; correct 9ex record`
+
+### New files
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
+
+---
+
+## 2026-06-19 21:02 — edmini / main
+
+**Last commit:** `88c5e7e feat(0t0): surface build id in the voice UI; correct 9ex record`
+
+### Modified files
+- `docs/SESSION_SUMMARIES.md`
+
+### New files
+- `.claude/launch.json`
+- `.dockerignore`
+- `.understand-anything/.understandignore`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/meta.json`
+- `Dockerfile`
+- `fly.toml`
+- `mission-control.html`
+
+> *Auto-generated — review and expand as needed. Run `/story` to capture narrative moments.*
