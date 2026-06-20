@@ -20,6 +20,34 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-19 — a new open problem surfaced: input addressivity ("focused" vs "public")
+
+The user raised a direction worth its own design later, captured now as a rough outline
+([`docs/architecture/open-problems.md`](docs/architecture/open-problems.md), bead `edmini-qo3`): in
+their words, *"edmini should not answer to ALL audio. it should listen but should only respond if the
+user specifically addresses edmini (to avoid the noisy environment issue)."* And the sharp twist:
+*"edmond needs to remember input, but may need to decide later if this was actually addressed to it or
+not. Perhaps we need a 'focused' <> 'public' mode."*
+
+Two things crystallised:
+- **This is the input side of the attention thesis.** v1 "attention accounting" is edmini protecting
+  the *User's* attention across runs (output). Addressivity is the inverse — edmini computing the
+  relevance of incoming audio *to itself*. A decide-later/retroactive-promotion problem: it must
+  buffer ambient speech it didn't act on, because "book that" can refer to context the User set while
+  talking to someone else.
+- **A naming-collision trap to avoid.** v3 explicitly rejected `ambient`/`focused`/`meeting` "modes"
+  ([v3 §6](docs/architecture/supervisor-architecture-design-v3.md)) — but that was about
+  *output/surfacing* (foreground vs background app focus). The User's "focused/public" is a different
+  axis (*input addressivity*). Same words, different concept; the note flags it so a future design
+  keeps them apart.
+
+While there, reconciled doc drift: the v1 design §6 still said "one active run" — updated for 9ex's
+concurrent runs. And a small vindication — v3 §1 *already* stated the insight I'd fumbled earlier
+("single-stream is a property of the voice channel… input is multiplex, the channel serial"); v1 had
+regressed from it. Updated §8/§9 accordingly and pointed them at the open-problems note.
+
+---
+
 ### 2026-06-19 — concurrent run narration implemented (9ex): labels + a priority queue
 
 Built the lift from one-active-run to **N concurrent runs**, straight from the approved spec. The

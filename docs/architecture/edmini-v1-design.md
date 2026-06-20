@@ -196,17 +196,26 @@ is a recall-quality bug, not a lost-event bug — the raw message is still logge
 ## 6. The voice layer
 
 Keep the existing OpenAI Realtime loop ([`VoiceAgent.tsx`](../../src/components/VoiceAgent.tsx),
-GA session route). With **one active run**, the three v3 phases collapse:
+GA session route). The three v3 phases stay simple because v1 has no topic graph or relevance engine:
 
-- **Observe.** A user utterance maps to *the active run* or *a new task*. Harness envelopes
-  arrive (via the ledger feed) as they land.
-- **Decide.** Minimal: `run_blocked` / `run_failed` → surface now; `run_output` / `run_done` →
-  fold in if it's the active run, else mark unread. Relevance = "is this the active run?" No
-  topic graph or relevance engine.
-- **Narrate.** Speak it. Existing barge-in handling is sufficient; modality/visual deferred.
+- **Observe.** A User utterance is a new task or a reference to an existing run (by its label).
+  Harness envelopes arrive via the ledger feed (Supabase Realtime) as they land.
+- **Decide.** Priority, not a relevance engine: `run_blocked` / `run_failed` are high,
+  `run_output` / `run_done` are low.
+- **Narrate.** Speak it, one batch at a time, naming the run by its label; gated so it never
+  interrupts the User and never fires into an in-flight response.
 
-The user switches the active run by voice ("what's happening with the export?"). Unread
-non-active items wait and are read on pull / on return.
+> **Update (2026-06-19, `edmini-9ex`): N concurrent runs, not one.** v1 first shipped a single
+> *active run* (`edmini-fw5`); review showed "voice is serial" constrains only the *output channel*
+> (edmini speaks one thing at a time), **not run *cardinality*** — v3 §1 already had this right
+> (input is multiplex, the channel serial). So the voice layer now supervises **many concurrent
+> runs**, each addressed by a short model-chosen **label** (`delegate_task(instruction, label)` /
+> `answer_run(label, …)` / `cancel_run(label, …)`). A client-side **run registry** (label↔runId, a
+> cache/projection over the ledger) and a **source-agnostic priority narration queue** replace the
+> single `activeRunId`; the queue drains only when the channel is idle and batches near-simultaneous
+> updates into one utterance. See [`run-registry.ts`](../../src/lib/voice/run-registry.ts),
+> [`narration-queue.ts`](../../src/lib/voice/narration-queue.ts), and the
+> [design spec](../superpowers/specs/2026-06-19-concurrent-run-narration-design.md).
 
 ---
 
@@ -232,7 +241,7 @@ ledger); the SSE/dashboard (becomes a thin ledger viewer).
 |---|---|---|
 | 1 | run vs job | **run** |
 | 2 | Project: entity or tag | **tag on run** (no Project entity in v1) |
-| 3 | bulk acknowledgement | **N/A** — one active run makes it moot; per-item |
+| 3 | bulk acknowledgement | **handled by batching** — the narration queue collapses near-simultaneous updates into one utterance (revised under `9ex`; the original "one active run makes it moot" no longer holds) |
 | 4 | snooze semantics | **deferred** (not in v1) |
 | 5 | output identity / addressing | **Discord thread/message snowflakes** |
 | 6 | third-party recall layer | **none in v1** — ledger + LLM context window only |
@@ -262,7 +271,12 @@ ledger); the SSE/dashboard (becomes a thin ledger viewer).
 **Still open:**
 1. Cancellation over the Discord transport: confirm whether the chosen harness exposes a
    `/stop`-style interrupt, else accept best-effort NL cancel.
-2. "Active run" switching UX in voice (explicit naming vs inferred).
+2. ~~"Active run" switching UX in voice~~ — **resolved (`9ex`):** runs are addressed by explicit
+   model-chosen labels; there is no single "active run" to switch.
+
+**Post-v1 open problems** (rough outlines, design later): see
+[`open-problems.md`](open-problems.md) — currently **input addressivity** (edmini responding only
+when addressed; "focused" vs "public" listening; `edmini-qo3`).
 
 ---
 
