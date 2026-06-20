@@ -13,6 +13,7 @@ import {
   type NarrationQueue,
   type Priority,
 } from "@/lib/voice/narration-queue";
+import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
 
 /**
  * How each interpreted harness lifecycle event becomes a narration item (9ex). `render` produces the
@@ -32,6 +33,7 @@ interface Turn {
   userText: string | null;
   edText: string;
   edStreaming: boolean;
+  spokenIndex?: number; // conservative spoken-so-far cursor while Ed narrates this turn (mb0)
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -193,6 +195,11 @@ export default function VoiceAgent() {
   // True while the next Ed turn is proactive narration (no user utterance), so its transcript turn
   // renders without a blank user bubble. Set when narration is injected; cleared when the User speaks.
   const edInitiatedPendingRef = useRef<boolean>(false);
+  // Narration progress (mb0): a conservative spoken-position cursor for the active Ed turn.
+  const narrationProgressRef = useRef<NarrationProgress | null>(null);
+  if (!narrationProgressRef.current) narrationProgressRef.current = createNarrationProgress();
+  const audioStartRef = useRef<number | null>(null); // audioEl.currentTime at this utterance's audio start
+  const progressTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
   // flight. Only call when responseActiveRef is false.
@@ -471,6 +478,13 @@ export default function VoiceAgent() {
     }).catch(() => {});
   }, []);
 
+  const stopProgressTicker = useCallback(() => {
+    if (progressTickerRef.current) {
+      clearInterval(progressTickerRef.current);
+      progressTickerRef.current = null;
+    }
+  }, []);
+
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
     let serverEvent: Record<string, unknown>;
     try {
@@ -500,11 +514,43 @@ export default function VoiceAgent() {
       if (!modelSpeakingFlagRef.current) {
         modelSpeakingFlagRef.current = true;
         pushEvent({ kind: "model_speaking", label: "Model started speaking" });
+        // mb0: snapshot the audio clock and start advancing the spoken cursor for the active turn.
+        audioStartRef.current = audioElRef.current?.currentTime ?? null;
+        stopProgressTicker();
+        progressTickerRef.current = setInterval(() => {
+          const audioEl = audioElRef.current;
+          const start = audioStartRef.current;
+          const activeId = currentTurnIdRef.current;
+          if (!audioEl || start === null || activeId === null) return;
+          const elapsedAudioMs = Math.max(0, (audioEl.currentTime - start) * 1000);
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === activeId
+                ? {
+                    ...t,
+                    spokenIndex: narrationProgressRef.current!.advance({
+                      fullText: t.edText,
+                      elapsedAudioMs,
+                    }).spokenIndex,
+                  }
+                : t,
+            ),
+          );
+        }, 100);
       }
     }
     if (type === "response.done") {
       setStatus("listening");
       modelSpeakingFlagRef.current = false;
+      // mb0: stop advancing and mark the active turn fully spoken.
+      stopProgressTicker();
+      audioStartRef.current = null;
+      const doneId = currentTurnIdRef.current;
+      if (doneId !== null) {
+        setTurns((prev) =>
+          prev.map((t) => (t.id === doneId ? { ...t, spokenIndex: t.edText.length } : t)),
+        );
+      }
       onResponseEnded(); // clear in-flight, fire next queued response / drain narration
     }
     // A rejected response.create (e.g. "conversation already has an active response") arrives as an
@@ -611,7 +657,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput]);
+  }, [postTurnToThread, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
@@ -709,6 +755,9 @@ export default function VoiceAgent() {
     runRegistryRef.current = createRunRegistry();
     narrationQueueRef.current = createNarrationQueue();
     pendingToolResponsesRef.current = [];
+    stopProgressTicker();
+    audioStartRef.current = null;
+    narrationProgressRef.current = createNarrationProgress();
     userSpeakingRef.current = false;
     responseActiveRef.current = false;
     dcRef.current?.close();
