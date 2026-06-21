@@ -148,3 +148,21 @@ concept doesn't. Any future design must keep the two axes separate (or pick non-
 - How does the User enter/exit focused mode — a word, sustained dialogue, a UI control?
 - Cost of transcribing and holding all ambient audio.
 - Does this want the v3 companion visual surface (an "what I heard but didn't act on" view)?
+
+### Update (2026-06-20): realtime diarization research → target-speaker VAD
+
+Researched whether newer voice models can attribute live speech to speakers (the enabling capability for
+per-speaker `from` and bystander rejection). Findings: **OpenAI Realtime has no native realtime
+diarization** (`gpt-4o-transcribe-diarize` is batch-only — "not yet supported in the Realtime API");
+**Gemini Live has none**. True *streaming* diarization lives in dedicated STT — **Speechmatics** (the
+only one with realtime *enrolled/named* speaker ID), Deepgram, AssemblyAI, Soniox, self-host NVIDIA
+Sortformer (4-speaker).
+
+**The reframe that matters:** we don't need full N-speaker diarization, we need a **target-speaker VAD** —
+enroll the primary user's voice once, gate the mic to them (lower latency, no clustering/cold-start;
+directly rejects bystanders). For true per-speaker attribution: keep OpenAI Realtime for the conversation
+and run **Speechmatics in a parallel stream** (enrolled ID → real `from`), budgeting timestamp-alignment
+(co-timestamp both off one monotonic clock) + cold-start (streaming labels are irreversible). Near-term:
+voice `from` = `"user"` (single-speaker assumption); capture **audio-source + device** on voice events as
+cheap forward hooks so per-speaker `from` can be backfilled later. This capability feeds `iee`'s
+`search_history` `from` (per-speaker) and `to` (addressivity). Full research on bead `edmini-qo3`.

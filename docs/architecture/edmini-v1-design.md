@@ -197,6 +197,18 @@ event: { event_id, ts, run_id, source: user | edmini | harness, kind, payload }
   [`src/lib/event-log-store.ts`](../../src/lib/event-log-store.ts) is refactored into the ledger
   writer; the dashboard becomes a thin ledger viewer.
 
+> **Update (2026-06-20, `edmini-shd` / `edmini-iee`): identity & the thread model.** Post-v1, `run_id`
+> stops being the Discord thread snowflake. Identity becomes a **minted, opaque, prefixed id we own**
+> (`run_<uuid>`, `thr_<uuid>`); the transport-native handle is retained under a uniform **`api_identifier`**
+> (+ a `transport` discriminator). Events gain a **`thread_id`** (the conversation locus — `voice`|
+> `written`), and a new **`threads`** table is the first-class, indexed, bidirectional `id ↔ api_identifier`
+> map. This makes the "derived graph store later, off the flat ledger" line above concrete: stable opaque
+> ids + raw-fact events **are** the graph substrate (`projectGraph(events)`) — relationships are recorded
+> as raw facts, never managed in bespoke structures (so the graph is a projection, not a parallel store).
+> See [shd](../superpowers/specs/2026-06-20-channel-agnostic-identity-design.md) and
+> [iee](../superpowers/specs/2026-06-20-session-memory-rehydration-design.md). *(Specs approved; not yet
+> implemented — this box is the forward-pointer until they land.)*
+
 **Accountability in v1, honestly stated.** Because inbound awareness flows through an LLM
 interpreter, detection is *eventually-consistent and occasionally imperfect*, not continuous and
 exact. The invariant holds in substance: every harness message the worker sees becomes a ledger
@@ -228,6 +240,16 @@ GA session route). The three v3 phases stay simple because v1 has no topic graph
 > updates into one utterance. See [`run-registry.ts`](../../src/lib/voice/run-registry.ts),
 > [`narration-queue.ts`](../../src/lib/voice/narration-queue.ts), and the
 > [design spec](../superpowers/specs/2026-06-19-concurrent-run-narration-design.md).
+
+> **Update (2026-06-20, `edmini-iee`): session memory.** A session now **rehydrates** the run registry
+> from the ledger on start (so cross-session / pre-reload run events aren't dropped) and **catches up** on
+> deliveries missed while audio was off (persisted last-seen seq). Recent history is fed into the prompt
+> as a **deliberately dumb, disposable stopgap**, with a durable **`search_history`** tool to go deeper —
+> the seam the future graph memory plugs into (its backend swaps; its interface stays). The **label** is
+> now just an ephemeral, speakable handle for live runs — *not* identity (the minted `runId`), *not* a
+> topic (subject-grouping, renamed from the old `thread-manager` `Thread`), *not* a retrieval key. See
+> [iee](../superpowers/specs/2026-06-20-session-memory-rehydration-design.md). *(Spec approved; not yet
+> implemented.)*
 
 ### 6.1 Narration progress & partial delivery (conservative by design)
 

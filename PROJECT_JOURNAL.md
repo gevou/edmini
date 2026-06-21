@@ -20,6 +20,97 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — designing for the graph: identity off the label, the thread/topic split, an over-engineering guardrail
+
+A long **design-only** session on `iee` (session memory) that kept widening as the user pulled on
+threads — no code, but three specs, a new bead, a research spike, and a much sharper object model. The
+arc: every time I proposed a *mechanism*, the user asked whether it was the right *abstraction* for
+where edmini is going (a graph-based memory), and the answer reshaped the design.
+
+**Identity comes off the label.** I'd spec'd run provenance as "reuse a label ⇒ chain," the label
+pointing at the head of a chain. The user stopped me on what `runId` even *is*: *"wouldn't it be better
+if we have our own uuid instead of using discord's? to make it channel agnostic. (we should use a common
+name across all objects e.g. api_identifier)"* Right — keying the ledger on a Discord snowflake overfits
+one transport (same sin as overfitting Hermes / OpenAI Realtime). Identity becomes a minted `run_<uuid>`;
+the transport's native id is retained under a uniform `api_identifier`. That spun out as its own bead,
+**`edmini-shd`** — *"agreed for own bead."* And the user wanted the channel id *kept*, not translated
+away: *"even if the ledger is channel-agnostic I can imagine many reasons why we'd want to map to a
+channel-specific id (jump to message, recovery, inbound message processing etc.)."* So `api_identifier`
+is a first-class, indexed, **bidirectional** map — not a detail we discard.
+
+**The label's slow death.** The user reframed: *"perhaps what we're describing here is chaining. A way
+to associate messages to dispatches, so that a given dispatch can also trace its predecessors/provenance…
+The 'label' becomes less critical since it's not the unique identifier or the topic (yet)."* The label —
+which started (9ex) as the run's addressing handle — kept shrinking through the session until it's just
+an **ephemeral, speakable nickname** for live runs: not identity (that's `runId`), not a topic (that's
+the graph), not a retrieval key. A small cautionary tale about premature identifiers.
+
+**The thread/topic split — and a naming bug it exposed.** The user pushed on vocabulary: *"most chat
+apps have threads… I feel that we should call it what it is, a thread. After all this can happen in many
+context, even in a voice conversation… edmini needs to be aware that a 'thread' may happen either in
+voice or written… it IS important in the context of conversations, which is edmini's core competency."*
+That forced a clean four-layer model and surfaced that the existing `thread-manager.ts` `Thread`
+(name/status/category/summary) is really a **topic**, misnamed. Renamed to `Topic`; "thread" freed for
+the conversation locus; the voice session itself becomes a `voice` thread. Full-reach rename, *"earlier
+than later should always be our strategy."*
+
+```mermaid
+graph TD
+  Topic["topic — subject grouping (future graph)"] --> Thread["thread (thr_) — conversation locus · voice|written"]
+  Thread --> Msg["message/event — carries api_identifier"]
+  Thread --> Run["run (run_) — delegated work"]
+  Run -. "prevRunId (raw fact)" .-> Run
+  Thread -. "api_identifier + transport" .-> Ext["native handle: Discord thread / voice session"]
+```
+
+**The over-engineering guardrail — the pivotal turn.** With the design getting rich, the user planted a
+flag: *"We will (sooner than later) plug into a graph based memory system to handle edmini's memory. I
+want to make sure that we're not designing against that and that we are not over-engineering."* That
+became the organizing lens for the whole `iee` spec: **operational vs. memory.** Operational correctness
+(rehydrate-for-delivery, catch-up-on-resume) is plumbing you need regardless — keep it. The *memory*
+half overlaps with the incoming graph — so trim it: provenance becomes a **raw recorded `prevRunId`
+fact** with *no* management logic (dropped head-re-pointing, the label-reuse rule, the suffix change),
+and history-into-prompt becomes a **dumb, disposable recent-N stopgap.** The rule now written into the
+spec: *record relationships as raw facts in the append-only ledger; never manage them in bespoke
+structures — the graph is `projectGraph(events)`, a projection, never a parallel store we sync.* Neat
+consequence: the raw `prevRunId` fact + a retrieval tool give provenance-walking **for free** (Ed reads
+`prevRunId` from results and re-queries), so we ship zero walk code.
+
+**A retrieval tool as the durable seam.** The user wanted history *"just slightly more sophisticated"*
+than a dump — *"let the agent go deeper if the conversation or the incoming event seems to refer to older
+events… a simple tool to search/retrieve history with params."* So `search_history` (limit / runId·
+api_identifier / date range / text / channel / coarse `from`): a thin, unranked query over the ledger
+whose *interface* survives into the graph era — only the backend swaps. The richer params (`channel`,
+`from`, `to`) are really message-node properties; `to` (addressivity) has no data yet and **defers to
+`qo3`** rather than shipping as a no-op filter.
+
+**Diarization spike.** On `from`/bystanders the user asked for research on realtime diarization in newer
+voice models. Verdict: **OpenAI Realtime has none** (its diarizer is batch-only — *"not yet supported in
+the Realtime API"*); Gemini Live none. True streaming diarization lives in dedicated STT (Speechmatics —
+the only one with realtime *enrolled* speaker ID — Deepgram, AssemblyAI…). The reframe that matters: we
+don't need full diarization, we need a **target-speaker VAD** (enroll the user once, gate the mic) — or,
+for true attribution, Speechmatics in a **parallel stream**. Persisted to `qo3`, with "voice `from` =
+user for now; capture audio-source + device as forward hooks."
+
+**A meta-moment.** The user asked *"What memory mechanism do you use?"* — and the honest answer (a
+context window + lossy compaction + flat, relevance-keyed files; no graph, no cross-session recall) is
+almost exactly edmini's *operational* layer, with the graph being the upgrade I lack. That fed back in:
+store **raw** facts, not pre-summarized state, so the graph can re-derive precision instead of inheriting
+my kind of gist.
+
+Specs: [`shd`](docs/superpowers/specs/2026-06-20-channel-agnostic-identity-design.md),
+[`iee`](docs/superpowers/specs/2026-06-20-session-memory-rehydration-design.md) (revised twice). `zo8`
+realigned to the new vocabulary; `qo3` enriched. Dependency chain: `shd` blocks `iee` + `zo8`. No code
+yet — `shd` is the unblocked lead into `writing-plans`. Commits
+[b79bdc7](https://github.com/gevou/edmini/commit/b79bdc7) → [40e3b2c](https://github.com/gevou/edmini/commit/40e3b2c).
+
+**Content potential:** "Designing memory for an agent when the real memory system isn't built yet" — the
+operational/memory split and *"record facts, don't manage relationships; the graph is a projection"* is
+a reusable principle. Plus the label's slow death (identity → handle → nickname) as a premature-
+identifier parable.
+
+---
+
 ### 2026-06-20 — v1 epic closed; four next-things surfaced (memory is the big one)
 
 Closed the `edmini-orm` epic — v1 (voice layer over an agent harness) is complete and live-verified
