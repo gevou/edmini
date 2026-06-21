@@ -1,20 +1,29 @@
-import { NextResponse } from "next/server";
-import { getThreads, createThread, resetThreads } from "@/lib/thread-manager";
+/**
+ * Thread registration (edmini-shd) — service-role write of a conversation-locus row. The browser holds
+ * only the anon key; the voice client POSTs here to record its voice thread at session start.
+ */
+import { threadStoreFromEnv, type ThreadMedium } from "@/lib/threads";
+import { mintThreadId } from "@/lib/ids";
 
-export async function GET() {
-  return NextResponse.json(getThreads());
-}
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function DELETE() {
-  resetThreads();
-  return NextResponse.json({ ok: true });
-}
+export async function POST(request: Request): Promise<Response> {
+  let body: { medium?: ThreadMedium; transport?: string; apiIdentifier?: string; runId?: string | null };
+  try { body = await request.json(); }
+  catch { return Response.json({ error: "invalid JSON" }, { status: 400 }); }
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  if (!body.name || !body.status || !body.category || !body.summary) {
-    return NextResponse.json({ error: "name, status, category, summary required" }, { status: 400 });
+  if (body.medium !== "voice" && body.medium !== "written") return Response.json({ error: "medium must be voice|written" }, { status: 400 });
+  if (!body.transport || !body.apiIdentifier) return Response.json({ error: "transport and apiIdentifier required" }, { status: 400 });
+
+  try {
+    const threads = threadStoreFromEnv({ serviceRole: true });
+    const thread = await threads.insert({
+      id: mintThreadId(), medium: body.medium, transport: body.transport,
+      apiIdentifier: body.apiIdentifier, runId: body.runId ?? null, topicId: null,
+    });
+    return Response.json({ threadId: thread.id });
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
-  const thread = createThread(body);
-  return NextResponse.json(thread, { status: 201 });
 }

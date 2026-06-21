@@ -8,18 +8,19 @@
 import type { OutboundEnvelopeKind, EnvelopePayloadMap } from "./envelope";
 
 export interface DispatchResult {
-  /** Run identifier — the Discord message id of the dispatch (becomes the thread id once threaded). */
-  runId: string;
-  messageId: string;
+  /** Transport-native handle for the created thread (e.g. the Discord thread id). NOT our runId. */
+  apiIdentifier: string;
+  /** Transport-native id of the dispatch message itself (for deep-linking). */
+  messageApiId: string;
 }
 
 export interface BusTransport {
-  /** Send a new task to the harness; returns the run handle. (outbound: task_dispatch) */
+  /** Create a thread for a task; returns the transport handle. (outbound: task_dispatch) */
   dispatch(instruction: string): Promise<DispatchResult>;
-  /** Reply to a blocked run's question. (outbound: answer) */
-  answer(runId: string, text: string): Promise<void>;
-  /** Ask the harness to stop a run; best-effort over chat. (outbound: cancel) */
-  cancel(runId: string, reason?: string): Promise<void>;
+  /** Reply to a blocked run's question, by the thread's transport handle. (outbound: answer) */
+  answer(apiIdentifier: string, text: string): Promise<void>;
+  /** Ask the harness to stop; by the thread's transport handle. (outbound: cancel) */
+  cancel(apiIdentifier: string, reason?: string): Promise<void>;
 }
 
 /**

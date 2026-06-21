@@ -2,9 +2,11 @@
  * Discord implementation of the bus transport (outbound: edmini -> harness). Posts via the Discord
  * REST API as the edmini bot. v1 transport per docs/architecture/edmini-v1-design.md §4.
  *
- * Run correlation (edmini-oys): dispatch() creates a THREAD per task and posts the instruction into
- * it; the thread id is the run_id. Verified live that Hermes replies inside an edmini-created thread,
- * so every reply lands under the same run_id. answer()/cancel() post into that thread.
+ * Run correlation (edmini-oys / edmini-shd): dispatch() creates a THREAD per task and posts the
+ * instruction into it; the Discord thread id is the transport-native `api_identifier` (NOT our runId —
+ * /api/bus mints run_/thr_ ids and maps them to this handle via the threads table). Hermes replies
+ * inside the edmini-created thread, so every reply lands under the same api_identifier;
+ * answer()/cancel() post into that thread by its api_identifier.
  *
  * NOTE: Discord requires a `DiscordBot (...)` User-Agent — without it Cloudflare returns 403/1010.
  */
@@ -42,19 +44,16 @@ export function createDiscordTransport(cfg: DiscordTransportConfig): BusTranspor
     async dispatch(instruction): Promise<DispatchResult> {
       const name = (instruction.replace(/\s+/g, " ").trim().slice(0, 90)) || "edmini task";
       const thread = await req<{ id: string }>(`/channels/${cfg.channelId}/threads`, {
-        name,
-        type: PUBLIC_THREAD,
-        auto_archive_duration: AUTO_ARCHIVE_MIN,
+        name, type: PUBLIC_THREAD, auto_archive_duration: AUTO_ARCHIVE_MIN,
       });
       const msg = await postMessage(thread.id, renderOutbound("task_dispatch", { instruction }));
-      // run_id = thread id; Hermes replies inside this thread (see edmini-oys).
-      return { runId: thread.id, messageId: msg.id };
+      return { apiIdentifier: thread.id, messageApiId: msg.id };
     },
-    async answer(runId, text): Promise<void> {
-      await postMessage(runId, renderOutbound("answer", { text }));
+    async answer(apiIdentifier, text): Promise<void> {
+      await postMessage(apiIdentifier, renderOutbound("answer", { text }));
     },
-    async cancel(runId, reason): Promise<void> {
-      await postMessage(runId, renderOutbound("cancel", { reason }));
+    async cancel(apiIdentifier, reason): Promise<void> {
+      await postMessage(apiIdentifier, renderOutbound("cancel", { reason }));
     },
   };
 }

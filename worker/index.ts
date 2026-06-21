@@ -15,11 +15,16 @@ config({ path: ".env.local" });
 import { Client, Events, GatewayIntentBits, type Message } from "discord.js";
 import { interpret, llmClassifierFromEnv, type LlmClassifier } from "../src/lib/bus/interpret";
 import { ledgerFromEnv } from "../src/lib/ledger-supabase";
+import { threadStoreFromEnv } from "../src/lib/threads";
+import { createRunResolver } from "./resolve-run";
 
 const BUS_CHANNEL_ID = required("EDMINI_BUS_CHANNEL_ID");
 const HERMES_USERNAME = process.env.HERMES_BOT_USERNAME ?? "EdHermes";
 const ledger = ledgerFromEnv({ serviceRole: true });
 const llm: LlmClassifier | undefined = process.env.OPENAI_API_KEY ? llmClassifierFromEnv() : undefined;
+
+const TRANSPORT = "discord";
+const resolver = createRunResolver({ store: threadStoreFromEnv({ serviceRole: true }), transport: TRANSPORT });
 
 function required(name: string): string {
   const v = process.env[name];
@@ -28,7 +33,7 @@ function required(name: string): string {
 }
 
 /** A message belongs to the bus if it's in the bus channel or a thread under it. */
-function busRunId(msg: Message): string | null {
+function busApiIdentifier(msg: Message): string | null {
   if (msg.channelId === BUS_CHANNEL_ID) return msg.id; // top-level post; thread-from-it shares this id
   const ch = msg.channel;
   if (ch.isThread() && ch.parentId === BUS_CHANNEL_ID) return ch.id; // run = thread id
@@ -36,30 +41,24 @@ function busRunId(msg: Message): string | null {
 }
 
 async function onMessage(msg: Message): Promise<void> {
-  const runId = busRunId(msg);
-  if (!runId) return;
+  const apiIdentifier = busApiIdentifier(msg);
+  if (!apiIdentifier) return;
+  const { threadId, runId } = await resolver.resolve(apiIdentifier);
 
   const isHarness = msg.author.username === HERMES_USERNAME;
   const source = isHarness ? "harness" : msg.author.bot ? "edmini" : "user";
 
   try {
-    // 1) raw crossing — always logged (accountability)
     await ledger.append({
-      runId,
-      source,
-      kind: "discord_message",
-      payload: { text: msg.content, author: msg.author.username, messageId: msg.id },
+      runId, threadId, source, kind: "discord_message",
+      payload: { text: msg.content, author: msg.author.username, apiIdentifier: msg.id },
     });
-
-    // 2) interpret harness messages into normalized envelopes
     if (isHarness && msg.content.trim()) {
       const r = await interpret(msg.content, llm);
       console.log(`[worker] ${runId} harness → ${r.kind} (${r.via})`);
       if (r.kind !== "ignore") {
         await ledger.append({
-          runId,
-          source: "harness",
-          kind: r.kind,
+          runId, threadId, source: "harness", kind: r.kind,
           payload: { ...r.payload, via: r.via, confidence: r.confidence },
         });
       }

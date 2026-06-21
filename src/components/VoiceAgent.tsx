@@ -180,6 +180,7 @@ export default function VoiceAgent() {
   const turnCounterRef = useRef(0);
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const voiceThreadIdRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
@@ -450,26 +451,26 @@ export default function VoiceAgent() {
     });
   }, []);
 
-  const postTurnToThread = useCallback(async (userText: string, edText: string) => {
+  const postTurnToTopic = useCallback(async (userText: string, edText: string) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
-      const res = await fetch("/api/threads/classify", {
+      const res = await fetch("/api/topics/classify", {
         method: "POST",
         headers,
         body: JSON.stringify({ utterance: userText }),
       });
       if (!res.ok) return;
-      const { threadId } = await res.json() as { threadId: string };
-      if (threadId === "general") return;
+      const { topicId } = await res.json() as { topicId: string };
+      if (topicId === "general") return;
       await Promise.all([
-        fetch(`/api/threads/${threadId}/message`, {
+        fetch(`/api/topics/${topicId}/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: "user", content: userText }),
         }),
-        fetch(`/api/threads/${threadId}/message`, {
+        fetch(`/api/topics/${topicId}/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: "ed", content: edText }),
@@ -483,6 +484,16 @@ export default function VoiceAgent() {
   useEffect(() => {
     scrollToBottom();
   }, [turns, scrollToBottom]);
+
+  const recordVoiceThread = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch("/api/threads", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ medium: "voice", transport: "openai-realtime", apiIdentifier: sessionId, runId: null }),
+      });
+      if (res.ok) voiceThreadIdRef.current = (await res.json()).threadId as string;
+    } catch { /* non-blocking */ }
+  }, []);
 
   // Record Ed's spoken output (the edmini → User boundary crossing) in the ledger (edmini-rv9), so
   // the whole conversation is durable/auditable, not just live in the browser. Fire-and-forget.
@@ -641,7 +652,7 @@ export default function VoiceAgent() {
         if (userText) {
           pendingUserTextRef.current = null;
           pendingEdTextRef.current = null;
-          postTurnToThread(userText, transcript);
+          postTurnToTopic(userText, transcript);
         } else {
           pendingEdTextRef.current = transcript;
         }
@@ -670,13 +681,13 @@ export default function VoiceAgent() {
         if (edText) {
           pendingUserTextRef.current = null;
           pendingEdTextRef.current = null;
-          postTurnToThread(text, edText);
+          postTurnToTopic(text, edText);
         } else {
           pendingUserTextRef.current = text;
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
@@ -687,6 +698,7 @@ export default function VoiceAgent() {
         ? `sess_${crypto.randomUUID()}`
         : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     sessionIdRef.current = newSessionId;
+    void recordVoiceThread(newSessionId);
     pushEvent({
       kind: "session_started",
       label: "Voice session started",
@@ -757,7 +769,7 @@ export default function VoiceAgent() {
       setStatus("error");
       stopSession();
     }
-  }, [handleDataChannelMessage, handleLedgerEvent, apiKey]);
+  }, [handleDataChannelMessage, handleLedgerEvent, apiKey, recordVoiceThread]);
 
   const stopSession = useCallback(() => {
     const activeId = currentTurnIdRef.current;
@@ -787,6 +799,7 @@ export default function VoiceAgent() {
     pcRef.current = null;
     if (audioElRef.current) audioElRef.current.srcObject = null;
     modelSpeakingFlagRef.current = false;
+    voiceThreadIdRef.current = null;
     if (sessionIdRef.current) {
       pushEvent({
         kind: "session_ended",

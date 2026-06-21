@@ -1,60 +1,64 @@
 /**
- * Outbound bus API (edmini-fw5) — the voice layer calls this to drive the harness. Maps the three
- * outbound actions to the transport (Discord) and records each as a ledger event (the outbound
- * crossing lands in the ledger before/as it reaches the harness; see edmini-v1-design.md §0/§4).
- *
- * POST body (one of):
- *   { action: "dispatch", instruction }        -> creates a run, returns { runId }
- *   { action: "answer",   runId, text }        -> reply to a blocked run
- *   { action: "cancel",   runId, reason? }     -> stop a run
+ * Outbound bus API. The voice layer calls this to drive the harness. /api/bus owns identity
+ * (edmini-shd): it mints run_/thr_ ids, writes the threads row (our id <-> Discord handle), and
+ * records each outbound crossing in the ledger. The transport speaks api_identifier only.
  */
 import { discordTransportFromEnv } from "@/lib/bus/discord-transport";
 import { ledgerFromEnv } from "@/lib/ledger-supabase";
+import { threadStoreFromEnv } from "@/lib/threads";
+import { mintRunId, mintThreadId } from "@/lib/ids";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type BusRequest =
-  | { action: "dispatch"; instruction: string; label?: string }
+  | { action: "dispatch"; instruction: string; label?: string; prevRunId?: string | null }
   | { action: "answer"; runId: string; text: string }
   | { action: "cancel"; runId: string; reason?: string };
 
+const TRANSPORT = "discord";
+
 export async function POST(request: Request): Promise<Response> {
   let body: BusRequest;
-  try {
-    body = (await request.json()) as BusRequest;
-  } catch {
-    return Response.json({ error: "invalid JSON" }, { status: 400 });
-  }
+  try { body = (await request.json()) as BusRequest; }
+  catch { return Response.json({ error: "invalid JSON" }, { status: 400 }); }
 
   const transport = discordTransportFromEnv();
   const ledger = ledgerFromEnv({ serviceRole: true });
+  const threads = threadStoreFromEnv({ serviceRole: true });
 
   try {
     switch (body.action) {
       case "dispatch": {
         if (!body.instruction?.trim()) return Response.json({ error: "instruction required" }, { status: 400 });
-        const { runId } = await transport.dispatch(body.instruction);
-        // Persist the model-chosen label in the ledger (9ex): the in-memory run registry is a cache
-        // over this; replaying task_dispatch events through the registry reconstructs labels.
+        const runId = mintRunId();
+        const threadId = mintThreadId();
+        const { apiIdentifier, messageApiId } = await transport.dispatch(body.instruction);
+        await threads.insert({
+          id: threadId, medium: "written", transport: TRANSPORT,
+          apiIdentifier, runId, topicId: null,
+        });
         await ledger.append({
-          runId,
-          source: "edmini",
-          kind: "task_dispatch",
-          payload: { instruction: body.instruction, label: body.label ?? null },
+          runId, threadId, source: "edmini", kind: "task_dispatch",
+          payload: { instruction: body.instruction, label: body.label ?? null,
+                     prevRunId: body.prevRunId ?? null, apiIdentifier: messageApiId },
         });
         return Response.json({ runId });
       }
       case "answer": {
         if (!body.runId || !body.text?.trim()) return Response.json({ error: "runId and text required" }, { status: 400 });
-        await transport.answer(body.runId, body.text);
-        await ledger.append({ runId: body.runId, source: "edmini", kind: "answer", payload: { text: body.text } });
+        const thr = await threads.byRunId(body.runId);
+        const apiId = thr?.apiIdentifier ?? body.runId; // legacy fallback: pre-shd runId IS the snowflake
+        await transport.answer(apiId, body.text);
+        await ledger.append({ runId: body.runId, threadId: thr?.id ?? null, source: "edmini", kind: "answer", payload: { text: body.text } });
         return Response.json({ ok: true });
       }
       case "cancel": {
         if (!body.runId) return Response.json({ error: "runId required" }, { status: 400 });
-        await transport.cancel(body.runId, body.reason);
-        await ledger.append({ runId: body.runId, source: "edmini", kind: "cancel", payload: { reason: body.reason ?? null } });
+        const thr = await threads.byRunId(body.runId);
+        const apiId = thr?.apiIdentifier ?? body.runId; // legacy fallback: pre-shd runId IS the snowflake
+        await transport.cancel(apiId, body.reason);
+        await ledger.append({ runId: body.runId, threadId: thr?.id ?? null, source: "edmini", kind: "cancel", payload: { reason: body.reason ?? null } });
         return Response.json({ ok: true });
       }
       default:

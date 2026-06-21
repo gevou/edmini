@@ -1,27 +1,27 @@
 import { readFileSync, writeFileSync } from "fs";
 
-export type ThreadStatus = "active" | "waiting" | "blocked" | "done";
+export type TopicStatus = "active" | "waiting" | "blocked" | "done";
 
-export interface ThreadMessage {
+export interface TopicMessage {
   role: "user" | "ed";
   content: string;
   timestamp: number;
 }
 
-export interface Thread {
+export interface Topic {
   id: string;
   name: string;
-  status: ThreadStatus;
+  status: TopicStatus;
   category: string;
   summary: string;
-  history: ThreadMessage[];
+  history: TopicMessage[];
   lastActivity: number;
   metadata?: Record<string, unknown>;
 }
 
-const THREADS_FILE = "/tmp/ed-threads.json";
+const TOPICS_FILE = "/tmp/ed-topics.json";
 
-const SEED_THREADS: Thread[] = [
+const SEED_TOPICS: Topic[] = [
   {
     id: "blog-tds-submission",
     name: "Blog TDS Submission",
@@ -36,7 +36,7 @@ const SEED_THREADS: Thread[] = [
     name: "Ed Mini Hackathon",
     status: "active",
     category: "engineering",
-    summary: "Voice agent deployed on Vercel. ThreadManager being built. Ship to Prod hackathon tomorrow.",
+    summary: "Voice agent deployed on Vercel. TopicManager being built. Ship to Prod hackathon tomorrow.",
     history: [],
     lastActivity: Date.now() - 1000 * 60 * 5,
   },
@@ -60,43 +60,43 @@ const SEED_THREADS: Thread[] = [
   },
 ];
 
-let threads: Thread[] = [];
+let topics: Topic[] = [];
 let initialized = false;
 
 function load() {
   if (initialized) return;
   initialized = true;
   try {
-    const data = readFileSync(THREADS_FILE, "utf-8");
-    threads = JSON.parse(data) as Thread[];
+    const data = readFileSync(TOPICS_FILE, "utf-8");
+    topics = JSON.parse(data) as Topic[];
   } catch {
-    threads = SEED_THREADS.map((t) => ({ ...t }));
+    topics = SEED_TOPICS.map((t) => ({ ...t }));
     save();
   }
 }
 
 function save() {
   try {
-    writeFileSync(THREADS_FILE, JSON.stringify(threads, null, 2));
+    writeFileSync(TOPICS_FILE, JSON.stringify(topics, null, 2));
   } catch {
     // /tmp may not be available in all environments — in-memory fallback is fine
   }
 }
 
-export function getThreads(): Thread[] {
+export function getTopics(): Topic[] {
   load();
-  return threads;
+  return topics;
 }
 
-export function getThread(id: string): Thread | undefined {
+export function getTopic(id: string): Topic | undefined {
   load();
-  return threads.find((t) => t.id === id);
+  return topics.find((t) => t.id === id);
 }
 
-export function createThread(partial: Omit<Thread, "id" | "history" | "lastActivity"> & { id?: string }): Thread {
+export function createTopic(partial: Omit<Topic, "id" | "history" | "lastActivity"> & { id?: string }): Topic {
   load();
-  const thread: Thread = {
-    id: partial.id ?? `thread-${Date.now()}`,
+  const topic: Topic = {
+    id: partial.id ?? `topic-${Date.now()}`,
     name: partial.name,
     status: partial.status,
     category: partial.category,
@@ -105,38 +105,38 @@ export function createThread(partial: Omit<Thread, "id" | "history" | "lastActiv
     lastActivity: Date.now(),
     metadata: partial.metadata,
   };
-  threads.push(thread);
+  topics.push(topic);
   save();
-  return thread;
+  return topic;
 }
 
-export function updateThread(id: string, updates: Partial<Omit<Thread, "id" | "history">>): Thread | null {
+export function updateTopic(id: string, updates: Partial<Omit<Topic, "id" | "history">>): Topic | null {
   load();
-  const idx = threads.findIndex((t) => t.id === id);
+  const idx = topics.findIndex((t) => t.id === id);
   if (idx === -1) return null;
-  threads[idx] = { ...threads[idx], ...updates, lastActivity: Date.now() };
+  topics[idx] = { ...topics[idx], ...updates, lastActivity: Date.now() };
   save();
-  return threads[idx];
+  return topics[idx];
 }
 
-export function addMessage(id: string, role: "user" | "ed", content: string): Thread | null {
+export function addMessage(id: string, role: "user" | "ed", content: string): Topic | null {
   load();
-  const idx = threads.findIndex((t) => t.id === id);
+  const idx = topics.findIndex((t) => t.id === id);
   if (idx === -1) return null;
-  threads[idx].history.push({ role, content, timestamp: Date.now() });
-  threads[idx].lastActivity = Date.now();
+  topics[idx].history.push({ role, content, timestamp: Date.now() });
+  topics[idx].lastActivity = Date.now();
   save();
-  return threads[idx];
+  return topics[idx];
 }
 
-export function resetThreads(): void {
-  threads = SEED_THREADS.map((t) => ({ ...t }));
+export function resetTopics(): void {
+  topics = SEED_TOPICS.map((t) => ({ ...t }));
   save();
 }
 
 export function getSystemPromptContext(): string {
   load();
-  const lines = threads.map((t) => {
+  const lines = topics.map((t) => {
     const recent = t.history.slice(-3).map((m) => `  ${m.role}: ${m.content}`).join("\n");
     return [
       `[${t.id}] ${t.name} (${t.status}) — ${t.summary}`,

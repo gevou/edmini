@@ -7,7 +7,7 @@ export default defineConfig(() => {
   return {
     test: {
       environment: "node",
-      include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+      include: ["src/**/*.test.ts", "src/**/*.test.tsx", "worker/**/*.test.ts"],
       globals: false,
     },
     resolve: {

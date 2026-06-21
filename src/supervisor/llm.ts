@@ -1,6 +1,6 @@
 
 import type { RephrasedResult } from "./types";
-import { getThreads } from "@/lib/thread-manager";
+import { getTopics } from "@/lib/topic-manager";
 
 /* -------------------------------------------------------------------------- */
 /* Step 1 — Rephrase                                                          */
@@ -15,10 +15,10 @@ function openaiHeaders() {
   };
 }
 
-function buildThreadList(): string {
-  const threads = getThreads().filter((t) => t.id !== "general");
-  if (threads.length === 0) return "No known threads yet — return empty array.";
-  return threads.map((t) => `- id: "${t.id}", name: "${t.name}", summary: "${t.summary}"`).join("\n");
+function buildTopicList(): string {
+  const topics = getTopics().filter((t) => t.id !== "general");
+  if (topics.length === 0) return "No known topics yet — return empty array.";
+  return topics.map((t) => `- id: "${t.id}", name: "${t.name}", summary: "${t.summary}"`).join("\n");
 }
 
 const REPHRASE_SCHEMA = {
@@ -37,7 +37,7 @@ const REPHRASE_SCHEMA = {
 } as const;
 
 export async function callRephrase(transcript: string): Promise<RephrasedResult> {
-  console.log(buildThreadList());
+  console.log(buildTopicList());
   const systemPrompt = `You are a voice-input normalizer for Ed, a personal AI assistant.
 
 Given a raw voice transcript, produce structured JSON:
@@ -80,7 +80,7 @@ Given a raw voice transcript, produce structured JSON:
   };
   return {
     text: parsed.text,
-    threadIds: [],
+    topicIds: [],
     confidence: parsed.confidence,
     ack: parsed.ack,
   };

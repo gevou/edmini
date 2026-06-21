@@ -7,6 +7,7 @@ const sampleRow: LedgerRow = {
   seq: 1,
   ts: "2026-06-19T00:00:00Z",
   run_id: "t1",
+  thread_id: null,
   source: "harness",
   kind: "run_output",
   payload: { text: "hi" },
@@ -30,6 +31,7 @@ describe("createLedger.append", () => {
     expect(from).toHaveBeenCalledWith("events");
     expect(insert).toHaveBeenCalledWith({
       run_id: "t1",
+      thread_id: null,
       source: "harness",
       kind: "run_output",
       payload: { text: "hi" },
