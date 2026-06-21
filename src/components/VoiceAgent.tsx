@@ -188,6 +188,7 @@ export default function VoiceAgent() {
   const graderRef = useRef<UtteranceGrader | null>(null);
   if (!graderRef.current) graderRef.current = createUtteranceGrader();
   const gradingEnabledRef = useRef(false);
+  const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
@@ -220,12 +221,12 @@ export default function VoiceAgent() {
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
   // flight. Only call when responseActiveRef is false.
-  const fireResponse = useCallback((sendItems: () => void) => {
+  const fireResponse = useCallback((sendItems: () => void, response?: Record<string, unknown>) => {
     const dc = dcRef.current;
     if (!dc || dc.readyState !== "open") return;
     responseActiveRef.current = true;
     sendItems();
-    dc.send(JSON.stringify({ type: "response.create" }));
+    dc.send(JSON.stringify(response ? { type: "response.create", response } : { type: "response.create" }));
   }, []);
 
   const sendToolResult = useCallback(
@@ -513,6 +514,14 @@ export default function VoiceAgent() {
     }).catch(() => {});
   }, []);
 
+  // Log a bystander's words that were heard but not acted on (suppressed turns).
+  const recordHeard = useCallback((text: string | null, confidence: number) => {
+    void fetch("/api/heard", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, confidence, threadId: voiceThreadIdRef.current }),
+    }).catch(() => {});
+  }, []);
+
   const stopProgressTicker = useCallback(() => {
     if (progressTickerRef.current) {
       clearInterval(progressTickerRef.current);
@@ -535,11 +544,26 @@ export default function VoiceAgent() {
       userSpeakingRef.current = true; // never narrate over the User
       edInitiatedPendingRef.current = false; // the User is speaking → the next turn is theirs
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
+      if (gradingEnabledRef.current) graderRef.current!.begin();
     }
     if (type === "input_audio_buffer.speech_stopped") {
       userSpeakingRef.current = false;
       pushEvent({ kind: "user_paused", label: "User paused" });
       tryDrain(); // channel may now be free for a queued update
+    }
+    if (type === "input_audio_buffer.committed") {
+      if (!gradingEnabledRef.current) return;
+      const itemId = serverEvent.item_id as string | undefined;
+      const { decision, confidence } = graderRef.current!.end();
+      if (decision === "respond") {
+        pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
+        fireResponse(() => {}, { metadata: { src: "client" } });
+      } else if (itemId) {
+        pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
+        dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
+        suppressedTurnRef.current = { itemId, confidence };
+      }
+      return;
     }
     if (type === "response.created") {
       responseActiveRef.current = true; // a response is in flight (ours or model-initiated)
@@ -668,6 +692,13 @@ export default function VoiceAgent() {
 
     // User transcript — always arrives after Ed's response; backfill into most recent unmatched turn
     if (type === "conversation.item.input_audio_transcription.completed") {
+      if (suppressedTurnRef.current) {
+        const { confidence } = suppressedTurnRef.current;
+        suppressedTurnRef.current = null;
+        const t = (serverEvent.transcript as string | undefined)?.trim() ?? null;
+        recordHeard(t, confidence);
+        return;
+      }
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
@@ -694,7 +725,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker, recordHeard, fireResponse]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
