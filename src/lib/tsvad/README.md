@@ -84,11 +84,28 @@ outbound.getTracks().forEach((t) => pc.addTrack(t, outbound));
 
 Tear down `vad.stop()` alongside the peer connection in `stopSession`.
 
-## Open validation items (edmini-xz9)
+## Validation
 
-1. CAM++ ONNX runs in the AudioWorklet path within latency budget on a phone browser.
-2. Enrolled user scores clearly above a second **English** speaker (CAM++ is Mandarin-centric — try
-   the bilingual zh/en variant if discrimination is weak).
-3. Gate hysteresis/hang don't clip the target's sentence onsets.
+Offline harness (reuses the real `fbank` + `cosine` through onnxruntime-node):
+
+```bash
+pnpm tsvad:validate                          # synthetic stand-in model (CI/no-network)
+pnpm tsvad:validate ./campplus.onnx ./wavs   # real model + <speakerId>_<utt>.wav (16k mono 16-bit)
+```
+
+It prints the model's true I/O contract (names + dim), same- vs different-speaker cosine separation
+(+ a crude EER and suggested threshold), and per-window embed latency. `embedder-contract.test.ts`
+runs the same path against a committed synthetic model as a CI regression guard.
+
+**Done (in-container, no network):**
+- ✅ I/O contract verified against a live ONNX Runtime session: `feats[1,T,80] → embs[1,192]`, matching `embedder-onnx.ts` defaults.
+- ✅ End-to-end plumbing `fbank → ONNX → cosine` runs and separates consistent spectra (margin > 0).
+
+**Still needs the real model + a real device (HF/ModelScope are network-blocked in CI):**
+1. Run `pnpm tsvad:validate <CAM++.onnx> <wavDir>` to confirm an enrolled user scores clearly above a
+   second **English** speaker (CAM++ is Mandarin-centric — try the bilingual zh/en variant if weak),
+   and to pick real `openThreshold`/`closeThreshold` from the reported EER threshold.
+2. CAM++ ONNX runs in the AudioWorklet path within latency budget on a phone browser.
+3. Gate hysteresis/hang don't clip the target's sentence onsets (judge by ear).
 4. fbank fidelity vs. Kaldi (`fbank.ts` is readable, not bit-exact) — swap to a wasm Kaldi fbank if
    scores look off.
