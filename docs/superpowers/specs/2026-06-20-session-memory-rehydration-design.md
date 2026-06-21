@@ -4,7 +4,8 @@
 **Depends on:** `edmini-shd` (channel-agnostic identity / thread model) — `iee` reads ids the `shd`
 foundation defines (it treats them as opaque).
 **Relates:** `edmini-9ex` (run registry / labels) · `edmini-rv9` (voice_output ledger) ·
-`edmini-mb0` (labels persisted in `task_dispatch`) · open-problems.md (run-as-stream)
+`edmini-mb0` (labels persisted in `task_dispatch`) · `edmini-qo3` (addressivity → `search_history` `to`) ·
+open-problems.md (run-as-stream)
 **Defers to the incoming graph memory:** relationship management, retrieval/ranking, lineage walking,
 topic clustering (see the design principle below).
 
@@ -94,17 +95,33 @@ Maintain `lastProcessedSeqRef`; rehydration sets it to the snapshot's max `seq`.
 **ignores any event with `seq ≤ lastProcessedSeqRef`** and advances it otherwise — making the
 snapshot→subscribe handoff idempotent. This value persists into `lastSeenSeq`.
 
-### 3. History context — disposable memory stopgap (fixes a)
+### 3. History context — shallow default + a retrieval tool (fixes a)
 
-> **DISPOSABLE.** This is a deliberately dumb stopgap so Ed isn't amnesiac before the graph lands. It
-> will be **replaced wholesale** by graph-driven retrieval. Do **not** add ranking, summarization, or
-> relevance scoring here.
+Two parts with different lifespans: a **disposable** passive baseline, and a **durable** active tool
+that is the seam the graph plugs into later.
 
-`/api/session` (server, service-role) injects a `## Recent history` block built from a ledger snapshot:
+**3a. Shallow default — DISPOSABLE.** `/api/session` (server, service-role) injects a `## Recent
+history` block: a dumb **recent-N dump, no scoring** — the last *N* conversation events
+(`user_utterance` + `voice_output`, by `seq`) and a flat list of recent runs (`projectRuns` + label).
+No ranking/summarization. **Replaced wholesale by graph-driven retrieval** when it lands.
 
-- **Recent-N dump, no scoring:** the last *N* conversation events (`user_utterance` + `voice_output`,
-  by `seq`) and a flat list of recent runs (`projectRuns` + label, e.g. `export (done) — "finished:
-  400"`). That's it.
+**3b. `search_history` tool — DURABLE (the retrieval seam).** Ed gets a tool to go deeper when a
+reference (or an incoming event) seems to point at older history. It's a **thin parametric query over
+the ledger, no ranking** — and its *interface* survives into the graph era; only the backend swaps
+(ledger query → graph retrieval). Params (Ed sets what it needs):
+
+| Param | Backed by | Notes |
+|---|---|---|
+| `limit` | now | cap on events returned |
+| `runId` / `apiIdentifier` | now | events for one run/thread; **provenance entry point** — Ed reads `prevRunId` from results and re-calls to walk lineage hop-by-hop (no walk code) |
+| `since` / `until` | now | date range |
+| `text` | now | free-text (ILIKE) over event payloads |
+| `channel` | after `shd` | the thread's `transport`/`medium` (voice/discord/slack/api), via `events.thread_id` → `threads` |
+| `from` | partial now | coarse sender: `source` (user/edmini/harness) + `payload.author`; richer identity arrives with multi-channel |
+| `to` | **deferred → `qo3`** | addressivity isn't captured yet (esp. in voice). Param shape reserved; lands when `qo3` records the addressee — **not** a no-op filter now |
+
+`from`/`to`/`channel` are really **message-node properties** in the eventual graph; recording them as
+raw event facts and exposing them as filters lays those attributes the dumb, forward-compatible way.
 
 ### 4. User-utterance logging — completes the ledger (operational, pro-graph)
 
@@ -124,14 +141,21 @@ the graph will use. No retrieval logic.
   consume; not required.)
 - **`src/lib/ledger.ts`** (small, pure): `labelsByRun(events)` (runId→label) and a trivial
   `recentConversation(events, n)` selector. Pure + tested.
+- **`src/lib/ledger-supabase.ts`**: extend `snapshot` with the `search_history` filters — `since`/
+  `until` (ts or seq), `text` (ILIKE over `payload`), `source`/`author` (`from`), and `channel` (join
+  `events.thread_id → threads.transport/medium`, post-`shd`). Keep returning raw events.
 - **`src/app/api/bus/route.ts`**: `dispatch` accepts optional `prevRunId`; write it into the
   `task_dispatch` payload. (Raw fact; no other logic.)
-- **`src/app/api/session/route.ts`**: inject the dumb `## Recent history` block (service-role snapshot).
+- **`src/app/api/session/route.ts`**: inject the dumb `## Recent history` block (service-role
+  snapshot); register the `search_history` tool definition in the `tools` array.
+- **`src/app/api/history/route.ts`** (new): backs `search_history` — validates params, runs the
+  filtered `snapshot`, returns raw events. The graph swaps in here later, behind the same route.
 - **`src/app/api/conversation/utterance/route.ts`** (new): service-role write of `user_utterance`.
 - **`src/components/VoiceAgent.tsx`**: on `startSession` snapshot → `buildRegistryFromEvents`, set
   `lastProcessedSeqRef`, compute + speak catch-up; record `prevRunId = resolveLabel(label)` before a
-  `delegate_task` bus call; `handleLedgerEvent` seq-dedup + advance `lastSeenSeq`; log User utterances;
-  persist `lastSeenSeq` on `stopSession`.
+  `delegate_task` bus call; handle the `search_history` tool call (→ `/api/history` → `sendToolResult`);
+  `handleLedgerEvent` seq-dedup + advance `lastSeenSeq`; log User utterances; persist `lastSeenSeq` on
+  `stopSession`.
 
 ## Data flow
 
@@ -149,6 +173,9 @@ delegate_task(label) → prevRunId = registry.resolveLabel(label) ?? null   (raw
   → /api/bus dispatch {instruction,label,prevRunId} → task_dispatch{…,prevRunId}
   → registry.register(runId,label)        (existing behaviour, suffix-on-collision)
 
+search_history(params) → /api/history → filtered ledger snapshot → raw events → sendToolResult
+  (Ed reads prevRunId in results → re-calls with that id to walk provenance, hop by hop)
+
 User utterance finalized → /api/conversation/utterance → user_utterance event
 Ed utterance finalized   → /api/voice-output           → voice_output event   (unchanged)
 ```
@@ -165,12 +192,18 @@ Ed utterance finalized   → /api/voice-output           → voice_output event 
 
 - **Unit (pure):** `buildRegistryFromEvents` (all runs registered, statuses from `projectRuns`,
   existing suffix-on-collision preserved); `labelsByRun`; `recentConversation`.
+- **Unit:** `/api/history` filter behaviour (limit, id, `since`/`until`, `text`, `channel`, `from`);
+  unsupported/empty filters degrade gracefully.
 - **Live:** (b) dispatch, reload, executor replies → it narrates (not dropped). (c) dispatch, stop
   audio, let executor finish, resume → Ed says "while you were away…". (a) ask "what were we doing"
-  after reload → Ed recalls from the dumb history. tsc/build/lint + existing tests green.
+  after reload → Ed recalls from the dumb history; ask about something older → Ed calls `search_history`
+  and recalls it. tsc/build/lint + existing tests green.
 
-## Out of scope (the graph owns these)
+## Out of scope
 
-- **Relationship management & lineage walking** (head re-pointing, `trace_run`, chain semantics).
-- **Retrieval/ranking/summarization** — §3 is a dumb stopgap the graph replaces.
+- **Relationship *management* & multi-hop lineage walking** (head re-pointing, `trace_run`, chain
+  semantics) — the graph owns these. (Single-hop provenance is free: `prevRunId` fact + `search_history`.)
+- **Retrieval *ranking*/summarization** — §3a is a dumb stopgap the graph replaces. (The `search_history`
+  *tool* (§3b) is built now and durable; only its backend swaps to the graph.)
+- **`to` / addressivity capture** → `edmini-qo3` (the `search_history` `to` param lands then).
 - **`projectGraph`, multi-parent/typed edges, topic clustering.**
