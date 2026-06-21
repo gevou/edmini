@@ -2,9 +2,11 @@
  * Discord implementation of the bus transport (outbound: edmini -> harness). Posts via the Discord
  * REST API as the edmini bot. v1 transport per docs/architecture/edmini-v1-design.md §4.
  *
- * Run correlation (edmini-oys): dispatch() creates a THREAD per task and posts the instruction into
- * it; the thread id is the run_id. Verified live that Hermes replies inside an edmini-created thread,
- * so every reply lands under the same run_id. answer()/cancel() post into that thread.
+ * Run correlation (edmini-oys / edmini-shd): dispatch() creates a THREAD per task and posts the
+ * instruction into it; the Discord thread id is the transport-native `api_identifier` (NOT our runId —
+ * /api/bus mints run_/thr_ ids and maps them to this handle via the threads table). Hermes replies
+ * inside the edmini-created thread, so every reply lands under the same api_identifier;
+ * answer()/cancel() post into that thread by its api_identifier.
  *
  * NOTE: Discord requires a `DiscordBot (...)` User-Agent — without it Cloudflare returns 403/1010.
  */

@@ -41,7 +41,7 @@ describe("createDiscordTransport", () => {
     expect(JSON.parse(mInit.body)).toEqual({ content: "schedule the standup" });
   });
 
-  it("answer posts into the run's thread (runId is the channel)", async () => {
+  it("answer posts into the run's thread (api_identifier is the channel)", async () => {
     await t().answer("run-9", "use prod");
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://discord.com/api/v10/channels/run-9/messages");
