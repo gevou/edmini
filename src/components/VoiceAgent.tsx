@@ -450,26 +450,26 @@ export default function VoiceAgent() {
     });
   }, []);
 
-  const postTurnToThread = useCallback(async (userText: string, edText: string) => {
+  const postTurnToTopic = useCallback(async (userText: string, edText: string) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
-      const res = await fetch("/api/threads/classify", {
+      const res = await fetch("/api/topics/classify", {
         method: "POST",
         headers,
         body: JSON.stringify({ utterance: userText }),
       });
       if (!res.ok) return;
-      const { threadId } = await res.json() as { threadId: string };
-      if (threadId === "general") return;
+      const { topicId } = await res.json() as { topicId: string };
+      if (topicId === "general") return;
       await Promise.all([
-        fetch(`/api/threads/${threadId}/message`, {
+        fetch(`/api/topics/${topicId}/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: "user", content: userText }),
         }),
-        fetch(`/api/threads/${threadId}/message`, {
+        fetch(`/api/topics/${topicId}/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: "ed", content: edText }),
@@ -641,7 +641,7 @@ export default function VoiceAgent() {
         if (userText) {
           pendingUserTextRef.current = null;
           pendingEdTextRef.current = null;
-          postTurnToThread(userText, transcript);
+          postTurnToTopic(userText, transcript);
         } else {
           pendingEdTextRef.current = transcript;
         }
@@ -670,13 +670,13 @@ export default function VoiceAgent() {
         if (edText) {
           pendingUserTextRef.current = null;
           pendingEdTextRef.current = null;
-          postTurnToThread(text, edText);
+          postTurnToTopic(text, edText);
         } else {
           pendingUserTextRef.current = text;
         }
       }
     }
-  }, [postTurnToThread, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);

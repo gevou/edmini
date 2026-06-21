@@ -181,7 +181,7 @@ export default function Dashboard() {
 
   const fetchThreads = useCallback(async () => {
     try {
-      const res = await fetch("/api/threads");
+      const res = await fetch("/api/topics");
       if (res.ok) {
         const data = await res.json() as Topic[];
         const newlyActive: string[] = [];
@@ -232,7 +232,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => { void fetch("/api/threads", { method: "DELETE" }); clearEvents(); setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
+            onClick={() => { void fetch("/api/topics", { method: "DELETE" }); clearEvents(); setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
             className="text-xs tracking-widest uppercase transition-colors"
             style={{ color: "rgba(255,255,255,0.25)" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
