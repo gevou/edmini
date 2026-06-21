@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import type { Thread, ThreadMessage } from "@/lib/thread-manager";
+import type { Topic, TopicMessage } from "@/lib/topic-manager";
 import EventLogView from "@/components/EventLogView";
 import { clearEvents } from "@/lib/event-log-store";
 
@@ -19,7 +19,7 @@ function FlashDot({ flashing }: { flashing?: boolean }) {
   );
 }
 
-function MessageBubble({ msg }: { msg: ThreadMessage }) {
+function MessageBubble({ msg }: { msg: TopicMessage }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -43,7 +43,7 @@ function MessageBubble({ msg }: { msg: ThreadMessage }) {
   );
 }
 
-function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }) {
+function ThreadCard({ thread, flashing }: { thread: Topic; flashing?: boolean }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevHistoryLen = useRef(thread.history.length);
 
@@ -103,8 +103,8 @@ function ThreadCard({ thread, flashing }: { thread: Thread; flashing?: boolean }
   );
 }
 
-function mergeThreads(prev: Thread[], next: Thread[]): Thread[] {
-  const merged = new Map<string, Thread>();
+function mergeThreads(prev: Topic[], next: Topic[]): Topic[] {
+  const merged = new Map<string, Topic>();
 
   // Seed with all previously seen threads
   for (const t of prev) {
@@ -137,7 +137,7 @@ function mergeThreads(prev: Thread[], next: Thread[]): Thread[] {
   return Array.from(merged.values());
 }
 
-function ConversationPanel({ threads }: { threads: Thread[] }) {
+function ConversationPanel({ threads }: { threads: Topic[] }) {
   const endRef = useRef<HTMLDivElement>(null);
   const allMessages = threads
     .flatMap((t) => t.history)
@@ -175,7 +175,7 @@ function ConversationPanel({ threads }: { threads: Thread[] }) {
 }
 
 export default function Dashboard() {
-  const [threads, setThreads] = useState<Thread[]>([]);
+  const [threads, setThreads] = useState<Topic[]>([]);
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
   const prevActivityRef = useRef<Map<string, number>>(new Map());
 
@@ -183,7 +183,7 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/threads");
       if (res.ok) {
-        const data = await res.json() as Thread[];
+        const data = await res.json() as Topic[];
         const newlyActive: string[] = [];
         for (const thread of data) {
           const prev = prevActivityRef.current.get(thread.id);

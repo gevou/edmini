@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getThreads, createThread, resetThreads } from "@/lib/thread-manager";
+import { getTopics, createTopic, resetTopics } from "@/lib/topic-manager";
 
 export async function GET() {
-  return NextResponse.json(getThreads());
+  return NextResponse.json(getTopics());
 }
 
 export async function DELETE() {
-  resetThreads();
+  resetTopics();
   return NextResponse.json({ ok: true });
 }
 
@@ -15,6 +15,6 @@ export async function POST(request: Request) {
   if (!body.name || !body.status || !body.category || !body.summary) {
     return NextResponse.json({ error: "name, status, category, summary required" }, { status: 400 });
   }
-  const thread = createThread(body);
-  return NextResponse.json(thread, { status: 201 });
+  const topic = createTopic(body);
+  return NextResponse.json(topic, { status: 201 });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getThreads } from "@/lib/thread-manager";
-import { classifyThread } from "@/lib/classify-thread";
+import { getTopics } from "@/lib/topic-manager";
+import { classifyTopic } from "@/lib/classify-topic";
 
 export async function POST(request: Request) {
   let body: { utterance?: string };
@@ -15,17 +15,17 @@ export async function POST(request: Request) {
   }
 
   const apiKey = request.headers.get("x-openai-key") ?? undefined;
-  const threads = getThreads();
+  const topics = getTopics();
 
-  console.log(`[classify route] ${threads.length} threads loaded, apiKey header: ${apiKey ? "present" : "absent"}, OPENAI_API_KEY env: ${process.env.OPENAI_API_KEY ? "set" : "NOT SET"}`);
+  console.log(`[classify route] ${topics.length} topics loaded, apiKey header: ${apiKey ? "present" : "absent"}, OPENAI_API_KEY env: ${process.env.OPENAI_API_KEY ? "set" : "NOT SET"}`);
 
-  let threadId: string;
+  let topicId: string;
   try {
-    threadId = await classifyThread(body.utterance, threads, apiKey);
+    topicId = await classifyTopic(body.utterance, topics, apiKey);
   } catch (err) {
-    console.error("[classify route] classifyThread threw:", err);
-    threadId = "general";
+    console.error("[classify route] classifyTopic threw:", err);
+    topicId = "general";
   }
 
-  return NextResponse.json({ threadId, confidence: threadId === "general" ? 0 : 0.85 });
+  return NextResponse.json({ topicId, confidence: topicId === "general" ? 0 : 0.85 });
 }

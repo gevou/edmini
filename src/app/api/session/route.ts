@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSystemPromptContext } from "@/lib/thread-manager";
+import { getSystemPromptContext } from "@/lib/topic-manager";
 
 export async function GET() {
   const hasKey = Boolean(process.env.OPENAI_API_KEY);

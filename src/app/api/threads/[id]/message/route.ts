@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addMessage } from "@/lib/thread-manager";
+import { addMessage } from "@/lib/topic-manager";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

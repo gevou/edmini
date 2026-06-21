@@ -1,6 +1,6 @@
 
 import type { RephrasedResult } from "./types";
-import { getThreads } from "@/lib/thread-manager";
+import { getTopics } from "@/lib/topic-manager";
 
 /* -------------------------------------------------------------------------- */
 /* Step 1 — Rephrase                                                          */
@@ -16,9 +16,9 @@ function openaiHeaders() {
 }
 
 function buildThreadList(): string {
-  const threads = getThreads().filter((t) => t.id !== "general");
-  if (threads.length === 0) return "No known threads yet — return empty array.";
-  return threads.map((t) => `- id: "${t.id}", name: "${t.name}", summary: "${t.summary}"`).join("\n");
+  const topics = getTopics().filter((t) => t.id !== "general");
+  if (topics.length === 0) return "No known threads yet — return empty array.";
+  return topics.map((t) => `- id: "${t.id}", name: "${t.name}", summary: "${t.summary}"`).join("\n");
 }
 
 const REPHRASE_SCHEMA = {

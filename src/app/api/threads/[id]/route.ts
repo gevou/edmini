@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { getThread, updateThread } from "@/lib/thread-manager";
+import { getTopic, updateTopic } from "@/lib/topic-manager";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const thread = getThread(id);
-  if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(thread);
+  const topic = getTopic(id);
+  if (!topic) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(topic);
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const thread = updateThread(id, body);
-  if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(thread);
+  const topic = updateTopic(id, body);
+  if (!topic) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(topic);
 }
