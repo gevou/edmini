@@ -24,7 +24,7 @@ export interface LedgerEvent {
   id?: string;
   seq?: number;
   ts?: string; // ISO timestamptz
-  runId: string | null; // Discord thread snowflake (null for pre-run/system events)
+  runId: string | null; // minted run_<uuid> (legacy: a Discord snowflake); null for pre-run/system events
   threadId?: string | null; // minted thr_<uuid> — the conversation locus (edmini-shd)
   source: LedgerSource;
   kind: string; // an envelope kind or a UI event kind

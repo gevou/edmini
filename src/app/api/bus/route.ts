@@ -5,7 +5,7 @@
  */
 import { discordTransportFromEnv } from "@/lib/bus/discord-transport";
 import { ledgerFromEnv } from "@/lib/ledger-supabase";
-import { threadStoreFromEnv, type ThreadStore } from "@/lib/threads";
+import { threadStoreFromEnv } from "@/lib/threads";
 import { mintRunId, mintThreadId } from "@/lib/ids";
 
 export const runtime = "nodejs";
@@ -47,17 +47,17 @@ export async function POST(request: Request): Promise<Response> {
       }
       case "answer": {
         if (!body.runId || !body.text?.trim()) return Response.json({ error: "runId and text required" }, { status: 400 });
-        const apiId = await resolveApiIdentifier(threads, body.runId);
-        await transport.answer(apiId, body.text);
         const thr = await threads.byRunId(body.runId);
+        const apiId = thr?.apiIdentifier ?? body.runId; // legacy fallback: pre-shd runId IS the snowflake
+        await transport.answer(apiId, body.text);
         await ledger.append({ runId: body.runId, threadId: thr?.id ?? null, source: "edmini", kind: "answer", payload: { text: body.text } });
         return Response.json({ ok: true });
       }
       case "cancel": {
         if (!body.runId) return Response.json({ error: "runId required" }, { status: 400 });
-        const apiId = await resolveApiIdentifier(threads, body.runId);
-        await transport.cancel(apiId, body.reason);
         const thr = await threads.byRunId(body.runId);
+        const apiId = thr?.apiIdentifier ?? body.runId; // legacy fallback: pre-shd runId IS the snowflake
+        await transport.cancel(apiId, body.reason);
         await ledger.append({ runId: body.runId, threadId: thr?.id ?? null, source: "edmini", kind: "cancel", payload: { reason: body.reason ?? null } });
         return Response.json({ ok: true });
       }
@@ -67,10 +67,4 @@ export async function POST(request: Request): Promise<Response> {
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
-}
-
-/** runId -> transport handle, with legacy fallback (pre-shd runId IS the snowflake). */
-async function resolveApiIdentifier(threads: ThreadStore, runId: string): Promise<string> {
-  const thr = await threads.byRunId(runId);
-  return thr?.apiIdentifier ?? runId;
 }
