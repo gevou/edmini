@@ -21,12 +21,12 @@ describe("createDiscordTransport", () => {
 
   const t = () => createDiscordTransport({ token: "TOK", channelId: "chan-1" });
 
-  it("dispatch creates a thread (runId) then posts the instruction into it, with UA + bot auth", async () => {
+  it("dispatch creates a thread (apiIdentifier) then posts the instruction into it, with UA + bot auth", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "thread-1" }) }) // create thread
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "msg-9" }) }); // post in thread
     const res = await t().dispatch("schedule the standup");
-    expect(res).toEqual({ runId: "thread-1", messageId: "msg-9" });
+    expect(res).toEqual({ apiIdentifier: "thread-1", messageApiId: "msg-9" });
 
     const [tUrl, tInit] = fetchMock.mock.calls[0];
     expect(tUrl).toBe("https://discord.com/api/v10/channels/chan-1/threads");

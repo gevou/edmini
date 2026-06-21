@@ -42,19 +42,16 @@ export function createDiscordTransport(cfg: DiscordTransportConfig): BusTranspor
     async dispatch(instruction): Promise<DispatchResult> {
       const name = (instruction.replace(/\s+/g, " ").trim().slice(0, 90)) || "edmini task";
       const thread = await req<{ id: string }>(`/channels/${cfg.channelId}/threads`, {
-        name,
-        type: PUBLIC_THREAD,
-        auto_archive_duration: AUTO_ARCHIVE_MIN,
+        name, type: PUBLIC_THREAD, auto_archive_duration: AUTO_ARCHIVE_MIN,
       });
       const msg = await postMessage(thread.id, renderOutbound("task_dispatch", { instruction }));
-      // run_id = thread id; Hermes replies inside this thread (see edmini-oys).
-      return { runId: thread.id, messageId: msg.id };
+      return { apiIdentifier: thread.id, messageApiId: msg.id };
     },
-    async answer(runId, text): Promise<void> {
-      await postMessage(runId, renderOutbound("answer", { text }));
+    async answer(apiIdentifier, text): Promise<void> {
+      await postMessage(apiIdentifier, renderOutbound("answer", { text }));
     },
-    async cancel(runId, reason): Promise<void> {
-      await postMessage(runId, renderOutbound("cancel", { reason }));
+    async cancel(apiIdentifier, reason): Promise<void> {
+      await postMessage(apiIdentifier, renderOutbound("cancel", { reason }));
     },
   };
 }
