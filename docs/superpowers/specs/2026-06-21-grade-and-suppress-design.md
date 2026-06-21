@@ -55,17 +55,20 @@ flowchart LR
 input_audio_buffer.speech_started   → grader.beginUtterance(now)
 (while speaking) vad.onScore(s)      → grader.addScore(s)        // raw cosine per ~160ms window
 input_audio_buffer.speech_stopped    → grader.endUtterance(now) → { decision, confidence, windows }
-   ├─ respond:  fireResponse(response.create)          // Ed answers (existing serialized path)
-   └─ suppress: do NOT create a response
-                conversation.item.delete(itemId)        // keep it out of Ed's context
+input_audio_buffer.committed         → capture item_id          // server auto-committed; do NOT send commit
+   ├─ respond:  fireResponse(response.create, { metadata:{ src:"client" } })   // existing serialized path
+   └─ suppress: conversation.item.delete(item_id)               // keep it out of Ed's context
                 ledger: { source:"user", kind:"heard", payload:{ confidence, text? } }
 ```
 
-Server-VAD still **auto-commits** the user audio into a conversation item even with
-`create_response:false`. On `suppress` we **delete that item** (`conversation.item.delete`) so a
-bystander/echo never pollutes Ed's working context, and log a **`heard`** ledger event so the *record*
-survives (the conversational-presence "capture" rail; enables decide-later promotion later — not built
-here). The item id arrives on `conversation.item.created` / transcription; correlate by turn.
+The grade is *ready* at `speech_stopped` (all scores are in), but we **act on
+`input_audio_buffer.committed`** — that's where the canonical `item_id` lands, needed for either path
+(suppress deletes it; respond fires after it so the user item provably exists). Server-VAD **auto-commits**
+the user audio even with `create_response:false`; we never send `input_audio_buffer.commit`. On
+`suppress` we **delete that item** so a bystander/echo never pollutes Ed's working context, and log a
+**`heard`** ledger event so the *record* survives (the conversational-presence "capture" rail; enables
+decide-later promotion later — not built here). Transcript (for the `heard` payload) arrives on
+`conversation.item.input_audio_transcription.completed`, slightly after — log it then if suppressed.
 
 **Clock alignment** is coarse-but-sufficient: buffer the `onScore` samples that arrive (by
 `performance.now()`) between the `speech_started` and `speech_stopped` data-channel events. Utterance-
@@ -105,12 +108,18 @@ The grader is a pure reducer: `createUtteranceGrader(policy?) → { beginUtteran
 - **Enrollment** — reuse `7vr`'s `VoiceEnrollment` component (localStorage centroid) in the voice
   onboarding, behind the same flag.
 
-> **⚠ Verify first (load-bearing):** confirm against the *current* OpenAI Realtime API that
-> `turn_detection.create_response:false` suppresses the auto-response while keeping VAD +
-> transcription, and that `conversation.item.delete` removes the auto-committed user item. If
-> `create_response` isn't available, fall back to the **cancel-after-create** path (`response.cancel`
-> on `suppress`) — uglier (a possible audio blip) but functionally equivalent. The plan's first task
-> is a quick spike to confirm this.
+> **✓ Verified against the current Realtime API (2026-06-21).** This is OpenAI's *documented intended
+> pattern* for manual response control, not a workaround. Exact mechanics:
+> - **Config:** `session.audio.input.turn_detection.create_response: false` suppresses the auto-response
+>   while keeping server-VAD + transcription. Keep **`interrupt_response: true`** (default) so the user
+>   can barge-in/interrupt Ed naturally (see Edge cases). `gpt-realtime`/`gpt-realtime-2` only —
+>   `gpt-realtime-whisper` needs `turn_detection: null` and is incompatible.
+> - **Do NOT send `input_audio_buffer.commit`** — server-VAD auto-commits on speech-stop. The canonical
+>   user-item `item_id` arrives on **`input_audio_buffer.committed`** (handle both
+>   `conversation.item.created` and the GA `conversation.item.added/.done`).
+> - **No hidden per-turn timeout** — fire `response.create` promptly on `committed` to avoid dead air
+>   (leave `idle_timeout_ms` unset). Tag client-initiated responses with `metadata` (no server "who
+>   initiated" field) so the `response.cancel` fallback can tell them apart.
 
 ## Config & default state
 
@@ -128,8 +137,13 @@ the grader needs no special "is this Ed" logic — "not the user" is sufficient.
 
 ## Edge cases
 
-- **Barge-in (user interrupts Ed):** it's the user → grades high → `respond` (interrupts, via the
-  existing `interrupt_response`). Correct by construction.
+- **Barge-in (user interrupts Ed):** `interrupt_response:true` (default) means *any* speech-start
+  cancels Ed's current response — so the user can naturally cut Ed off. The follow-up response is still
+  **graded** (`create_response:false`), so only the user gets a reply. **Accepted v0 caveat:** a loud
+  bystander can also *interrupt* Ed (just stops him — harmless; he won't *answer* them). `echoCancellation`
+  keeps Ed's own echo from self-interrupting. "Only the user may interrupt" (manual interrupt via
+  `response.cancel` gated on a high barge-in grade) is a later refinement — grading a barge-in fast
+  enough is the ~1 s-ramp problem, so v0 keeps auto-interrupt.
 - **Overlapping speech (user + bystander):** mean cosine sits between → near the threshold. v0 accepts
   the threshold's call; refinement (per-window max, diarization) is later.
 - **Scorer/model failure** (ONNX load fails, embed throws): **fail OPEN** — grade `respond` for every
