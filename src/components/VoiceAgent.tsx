@@ -729,7 +729,12 @@ export default function VoiceAgent() {
       audioElRef.current = audioEl;
       pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; };
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Enable the browser's audio processing so the mic doesn't re-capture Ed's own voice on
+      // speakerphone (which server-VAD would treat as new user turns → feedback loop). Partial
+      // mitigation; the real fix is target-speaker VAD (edmini-qo3).
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       const dc = pc.createDataChannel("oai-events");
