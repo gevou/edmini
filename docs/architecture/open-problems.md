@@ -91,6 +91,9 @@ dismissal on user confirmation. See [`edmini-v1-design.md` §6.1](edmini-v1-desi
 ## Input addressivity — "focused" vs "public" listening
 
 **Status:** rough outline (2026-06-19) · design later · bead `edmini-qo3`
+**Superset framing:** [`conversational-presence.md`](./conversational-presence.md) generalizes this into the
+full input-side thesis (capture/commit/contribute gates; the channel→TS-VAD→semantic-VAD listening stack;
+the participation contract). TS-VAD/bystander-rejection is its **v0** (bead `edmini-7vr`, PR #5).
 
 ### The problem
 edmini's voice loop today responds to **all** detected speech: OpenAI Realtime server-VAD treats

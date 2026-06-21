@@ -160,7 +160,16 @@ alter table public.events add column if not exists thread_id text;
 create index if not exists events_thread_idx on public.events (thread_id);
 ```
 
-- [ ] **Step 2: Apply + verify**
+- [ ] **Step 2: (Prototype) wipe existing data first**
+
+This is a prototype — wipe the ledger so there are no pre-shd snowflake runs to reconcile (makes the
+legacy fallback dead code in practice, kept only as cheap robustness):
+```sql
+truncate table public.events;          -- append-only trigger blocks DELETE, not TRUNCATE
+drop table if exists public.threads;   -- recreated cleanly by the migration below
+```
+
+- [ ] **Step 3: Apply + verify**
 
 Run against Supabase (SQL editor or `psql "$SUPABASE_URL" -f infra/supabase/migrations/0002_threads_identity.sql`).
 Verify:
@@ -171,7 +180,7 @@ select column_name from information_schema.columns where table_name='events' and
 -- expect: thread_id
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add infra/supabase/migrations/0002_threads_identity.sql
@@ -866,45 +875,11 @@ git commit -m "feat(shd): record the voice session as a voice thread [edmini-shd
 
 ---
 
-## Group 6 — Back-compat & optional backfill
+## Group 6 — Back-compat
 
-### Task 12: Backfill `threads` rows for historical runs (optional, idempotent)
-
-**Files:**
-- Create: `infra/supabase/migrations/0003_backfill_threads.sql`
-
-> Makes pre-shd runs uniform + deep-linkable. Safe: only inserts rows that don't exist. The runtime
-> legacy fallback (Task 6/9) already makes old runs work *without* this — backfill is hygiene.
-
-- [ ] **Step 1: Write the backfill**
-
-```sql
--- edmini shd — backfill threads rows for pre-shd runs (run_id was the Discord thread snowflake).
--- One written/discord thread per historical task_dispatch; id == api_identifier == run_id (legacy shape).
-insert into public.threads (id, medium, transport, api_identifier, run_id)
-select distinct e.run_id, 'written', 'discord', e.run_id, e.run_id
-from public.events e
-where e.kind = 'task_dispatch'
-  and e.run_id is not null
-  and e.run_id not like 'run\_%'      -- skip already-minted shd runs
-  and not exists (select 1 from public.threads t where t.run_id = e.run_id)
-on conflict (id) do nothing;
-```
-
-- [ ] **Step 2: Apply + verify**
-
-Run the SQL against Supabase. Verify:
-```sql
-select count(*) from public.threads where transport='discord' and id = api_identifier;  -- legacy rows
-```
-Expected: count == number of distinct historical Discord-run task_dispatches.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add infra/supabase/migrations/0003_backfill_threads.sql
-git commit -m "feat(shd): backfill threads rows for pre-shd runs [edmini-shd]"
-```
+**Backfill dropped** — the prototype DB is wiped in Task 3 (Step 2), so there are no pre-shd snowflake
+runs to migrate. The runtime **legacy fallback** in Task 6 (`legacyThreadFor`) and Task 9 (resolver) is
+retained as cheap belt-and-suspenders robustness (it simply never fires on a clean DB). No task here.
 
 ---
 
@@ -918,7 +893,7 @@ git commit -m "feat(shd): backfill threads rows for pre-shd runs [edmini-shd]"
   - Answer/cancel by voice → reaches the correct Discord thread (resolved `run_id → api_identifier`).
   - Start a voice session → a `voice` thread row exists (`transport: openai-realtime`).
   - Deep-link: a `discord_message` event's `payload.apiIdentifier` + its thread's `api_identifier` build a valid Discord message URL.
-  - Legacy: answer/cancel on a pre-shd run still posts to the right thread (legacy fallback).
+  - (Legacy fallback is dead code on a wiped DB — no live check needed.)
 - [ ] **Close-out:** `bd close edmini-shd --reason "…"` + `bd label add edmini-shd needs-verification`; this unblocks `edmini-iee` and `edmini-zo8`.
 
 ## Worker deploy reminder
