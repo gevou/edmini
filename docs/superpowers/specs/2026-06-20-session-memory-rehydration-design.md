@@ -3,6 +3,8 @@
 **Date:** 2026-06-20 · **Status:** approved-pending-review · **Bead:** `edmini-iee`
 **Relates:** `edmini-9ex` (run registry / labels) · `edmini-rv9` (voice_output ledger) ·
 `edmini-mb0` (labels persisted in `task_dispatch`) · open-problems.md (run-as-stream)
+**Recommended prerequisite:** `edmini-shd` (channel-agnostic run identity) — so provenance edges land
+on the final id-space (see Identity note below). `iee` is id-agnostic, so this is sequencing, not a hard block.
 **Defers to follow-up:** chain *consume* (Ed walking lineage); full graph memory
 
 ## Context
@@ -32,9 +34,11 @@ edges possible later).
 
 This is the conceptual core; everything else is mechanism.
 
-- **`runId` is identity.** The Discord thread snowflake is the stable node id. The **label is a
-  human-friendly *alias* that points at the *head* (latest run) of a chain** — not an identifier and
-  not (yet) a topic.
+- **`runId` is identity — an opaque token.** `iee` never parses it or assumes a transport. Today it
+  happens to be the Discord thread snowflake; `edmini-shd` makes it a UUID we mint, with the transport's
+  native id stored as `api_identifier` (+ a `transport` discriminator). Because `iee` treats `runId` as
+  opaque, that refactor is orthogonal to this spec's correctness. The **label is a human-friendly
+  *alias* that points at the *head* (latest run) of a chain** — not an identifier and not (yet) a topic.
 - **Provenance is an edge in the ledger.** A `task_dispatch` carries an optional **`prevRunId`** —
   the run this one continues. Reusing a label = "this continues that topic" → the new run links to the
   prior head via `prevRunId`, and the label re-points to the new head. The old run stays addressable
