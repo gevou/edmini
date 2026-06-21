@@ -20,6 +20,43 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-21 — TS-VAD validated, and "only respond to me" shipped as parallel grade-and-suppress
+
+Turned the speakerphone feedback loop into a real feature. Picked up **PR #5 / TS-VAD** (`edmini-7vr`):
+rebased it clean onto main, then **sourced the CAM++ ONNX myself** — ModelScope only ships the PyTorch
+`.bin`, so I pulled the ONNX from the sherpa-onnx zoo (Apache-2.0, non-VoxCeleb) and validated it
+**offline** with the repo's example WAVs: same-speaker 0.65 vs different −0.04, **margin 0.69**, after a
+fix (the export's tensor is `input:x/output:embedding`, not the hardcoded `feats` — now auto-detected).
+The user lab-tested on English: self-score **0.4–0.6+**, others low. Good engine.
+
+The architecture pivot came from the user, watching the lab: inline gating clipped word onsets by **~1 s**
+— *"it's as if it needs >1 second of sample to decide."* It does: 600 ms window + 250 ms EMA half-life +
+the 0.45 threshold. He called it: *"for integration with edmini this should run in parallel… and just
+'grade' incoming utterances with a confidence %."* That's exactly right and it's what the
+conversational-presence memo's **contribute gate** already wanted — TS-VAD as a *grader*, not an audio
+gate. The ~1 s ramp stops mattering because we grade the **completed** utterance (after the ~800 ms
+end-of-speech silence), so it's free accuracy instead of clipped words. He also probed whether we could
+flip `create_response` true in advance to shave the trigger round-trip — sharp, but it decides on the
+*least-reliable early windows* and races the turn-end, so we recorded it as a deferred alternative.
+
+Spec'd **grade-and-suppress** (`edmini-5y7`, qo3 v0): mic → OpenAI raw (zero added latency); TS-VAD scores
+in parallel; at `input_audio_buffer.committed` edmini fires `response.create` (respond) or
+`conversation.item.delete` + a `heard` ledger event (suppress). Before planning, **an agent verified the
+Realtime API** — `create_response:false` + `conversation.item.delete` is OpenAI's *documented* manual-
+control pattern, not a hack (so no spike needed; the cancel-after-create fallback stays in reserve).
+
+Then ran it subagent-driven: **merged PR #5 to main** first (engine landed, `7vr` closed/verified), then
+7 tasks — pure `utterance-grader` (mean-over-voiced, allow-if-uncertain, pass-through), `/api/heard`,
+the session flag, and the VoiceAgent wiring (scorer lifecycle with the **raw mic preserved**, grade-at-
+committed, enrollment + a grading toggle). The whole-feature review confirmed the load-bearing invariant
+— **grading-off = byte-for-byte today's behavior** — plus opt-in/default-off, pass-through pre-enroll,
+and fail-open. 149 tests, tsc + build clean; merged (`ecf4069`). `needs-verification` on device.
+
+Content potential: "validating a speaker model you had to go find the weights for," and the inline-gate→
+parallel-grade pivot — the same ~1 s latency that *kills* a gate is *free* for a grader.
+
+---
+
 ### 2026-06-21 — `shd` verified live; the feedback loop; and the conversational-presence frame
 
 Live-tested `shd` on device and **verified it end-to-end from the ledger**. First run looked like a "race
