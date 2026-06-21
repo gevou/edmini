@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (body.role !== "user" && body.role !== "ed") {
     return NextResponse.json({ error: "role must be 'user' or 'ed'" }, { status: 400 });
   }
-  const thread = addMessage(id, body.role, body.content);
-  if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(thread);
+  const topic = addMessage(id, body.role, body.content);
+  if (!topic) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(topic);
 }

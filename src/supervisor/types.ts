@@ -12,7 +12,7 @@ import type { EventLogKind } from "@/lib/event-log-store";
 
 export interface RephrasedResult {
   text: string;
-  threadIds: string[];
+  topicIds: string[];
   confidence: number;
   /** Brief verbal confirmation Ed speaks while routing continues in the background. */
   ack: string;
@@ -36,7 +36,7 @@ export interface ExecuteActionInput {
   capability: string;
   params: Record<string, unknown>;
   rephrase: string;
-  threadIds: string[];
+  topicIds: string[];
   requiresConfirmation: boolean;
 }
 
@@ -51,8 +51,8 @@ export interface ConversationContext {
     text: string;
     timestamp: number;
   }>;
-  /** Active thread / workspace identifier, if applicable. */
-  threadId?: string;
+  /** Active topic / workspace identifier, if applicable. */
+  topicId?: string;
   /** Anything else the front-end wants to forward. Free-form. */
   metadata?: Record<string, unknown>;
 }

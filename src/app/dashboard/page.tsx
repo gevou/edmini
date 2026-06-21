@@ -43,16 +43,16 @@ function MessageBubble({ msg }: { msg: TopicMessage }) {
   );
 }
 
-function ThreadCard({ thread, flashing }: { thread: Topic; flashing?: boolean }) {
+function TopicCard({ topic, flashing }: { topic: Topic; flashing?: boolean }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const prevHistoryLen = useRef(thread.history.length);
+  const prevHistoryLen = useRef(topic.history.length);
 
   useEffect(() => {
-    if (thread.history.length !== prevHistoryLen.current) {
-      prevHistoryLen.current = thread.history.length;
+    if (topic.history.length !== prevHistoryLen.current) {
+      prevHistoryLen.current = topic.history.length;
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [thread.history.length]);
+  }, [topic.history.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
@@ -71,28 +71,28 @@ function ThreadCard({ thread, flashing }: { thread: Topic; flashing?: boolean })
           className="text-white/90 font-semibold text-sm truncate"
           style={{ fontFamily: "var(--font-syne)" }}
         >
-          {thread.name}
+          {topic.name}
         </h2>
         <FlashDot flashing={flashing} />
       </div>
 
-      <p className="text-white/50 text-xs leading-relaxed">{thread.summary}</p>
+      <p className="text-white/50 text-xs leading-relaxed">{topic.summary}</p>
 
       <div
         className="flex flex-col gap-1.5 overflow-y-auto rounded-xl"
         style={{
-          minHeight: thread.history.length > 0 ? 200 : 48,
+          minHeight: topic.history.length > 0 ? 200 : 48,
           maxHeight: 300,
-          padding: thread.history.length > 0 ? "8px" : "0",
+          padding: topic.history.length > 0 ? "8px" : "0",
           background: "rgba(255,255,255,0.02)",
           border: "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        {thread.history.length === 0 ? (
+        {topic.history.length === 0 ? (
           <p className="text-white/15 text-xs text-center py-3">No messages yet</p>
         ) : (
           <>
-            {thread.history.map((msg, i) => (
+            {topic.history.map((msg, i) => (
               <MessageBubble key={i} msg={msg} />
             ))}
             <div ref={messagesEndRef} />
@@ -103,10 +103,10 @@ function ThreadCard({ thread, flashing }: { thread: Topic; flashing?: boolean })
   );
 }
 
-function mergeThreads(prev: Topic[], next: Topic[]): Topic[] {
+function mergeTopics(prev: Topic[], next: Topic[]): Topic[] {
   const merged = new Map<string, Topic>();
 
-  // Seed with all previously seen threads
+  // Seed with all previously seen topics
   for (const t of prev) {
     merged.set(t.id, { ...t });
   }
@@ -137,9 +137,9 @@ function mergeThreads(prev: Topic[], next: Topic[]): Topic[] {
   return Array.from(merged.values());
 }
 
-function ConversationPanel({ threads }: { threads: Topic[] }) {
+function ConversationPanel({ topics }: { topics: Topic[] }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const allMessages = threads
+  const allMessages = topics
     .flatMap((t) => t.history)
     .sort((a, b) => a.timestamp - b.timestamp);
 
@@ -175,24 +175,24 @@ function ConversationPanel({ threads }: { threads: Topic[] }) {
 }
 
 export default function Dashboard() {
-  const [threads, setThreads] = useState<Topic[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
   const prevActivityRef = useRef<Map<string, number>>(new Map());
 
-  const fetchThreads = useCallback(async () => {
+  const fetchTopics = useCallback(async () => {
     try {
       const res = await fetch("/api/topics");
       if (res.ok) {
         const data = await res.json() as Topic[];
         const newlyActive: string[] = [];
-        for (const thread of data) {
-          const prev = prevActivityRef.current.get(thread.id);
-          if (prev !== undefined && thread.lastActivity > prev) {
-            newlyActive.push(thread.id);
+        for (const topic of data) {
+          const prev = prevActivityRef.current.get(topic.id);
+          if (prev !== undefined && topic.lastActivity > prev) {
+            newlyActive.push(topic.id);
           }
-          prevActivityRef.current.set(thread.id, thread.lastActivity);
+          prevActivityRef.current.set(topic.id, topic.lastActivity);
         }
-        setThreads((prev) => mergeThreads(prev, data));
+        setTopics((prev) => mergeTopics(prev, data));
         if (newlyActive.length > 0) {
           setFlashingIds((ids) => new Set([...ids, ...newlyActive]));
           setTimeout(() => {
@@ -210,10 +210,10 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchThreads();
-    const interval = setInterval(fetchThreads, 5000);
+    fetchTopics();
+    const interval = setInterval(fetchTopics, 5000);
     return () => clearInterval(interval);
-  }, [fetchThreads]);
+  }, [fetchTopics]);
 
   return (
     <div
@@ -228,11 +228,11 @@ export default function Dashboard() {
           >
             Ed
           </h1>
-          <p className="text-white/30 text-xs tracking-widest uppercase">thread dashboard</p>
+          <p className="text-white/30 text-xs tracking-widest uppercase">topic dashboard</p>
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => { void fetch("/api/topics", { method: "DELETE" }); clearEvents(); setThreads([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
+            onClick={() => { void fetch("/api/topics", { method: "DELETE" }); clearEvents(); setTopics([]); prevActivityRef.current.clear(); setFlashingIds(new Set()); }}
             className="text-xs tracking-widest uppercase transition-colors"
             style={{ color: "rgba(255,255,255,0.25)" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
@@ -262,15 +262,15 @@ export default function Dashboard() {
           className="w-full lg:w-80 shrink-0 lg:sticky lg:top-8"
           style={{ height: "auto" }}
         >
-          <ConversationPanel threads={threads} />
+          <ConversationPanel topics={topics} />
         </div>
         <div className="flex-1 w-full">
-          {threads.length === 0 ? (
-            <div className="text-white/20 text-sm text-center py-16">Loading threads…</div>
+          {topics.length === 0 ? (
+            <div className="text-white/20 text-sm text-center py-16">Loading topics…</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {threads.map((t) => (
-                <ThreadCard key={t.id} thread={t} flashing={flashingIds.has(t.id)} />
+              {topics.map((t) => (
+                <TopicCard key={t.id} topic={t} flashing={flashingIds.has(t.id)} />
               ))}
             </div>
           )}
