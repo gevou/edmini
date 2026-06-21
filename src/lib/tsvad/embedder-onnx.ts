@@ -39,7 +39,6 @@ export interface OnnxEmbedderOptions {
 export async function createOnnxCamPlusEmbedder(opts: OnnxEmbedderOptions): Promise<SpeakerEmbedder> {
   const dim = opts.dim ?? 192;
   const minAudioMs = opts.minAudioMs ?? 250;
-  const inputName = opts.inputName ?? "feats";
   const layout = opts.featureLayout ?? "TF";
   const fbankCfg = opts.fbank ?? DEFAULT_FBANK_CONFIG;
   const fbank = createFbankExtractor(fbankCfg);
@@ -49,6 +48,9 @@ export async function createOnnxCamPlusEmbedder(opts: OnnxEmbedderOptions): Prom
     executionProviders: opts.executionProviders ?? ["wasm"],
     graphOptimizationLevel: "all",
   });
+  // Default to the model's actual tensor names — exports differ (the sherpa-onnx CAM++ uses
+  // input "x" / output "embedding"; others use "feats"). Auto-detect to avoid a silent mismatch.
+  const inputName = opts.inputName ?? session.inputNames[0];
   const outputName = opts.outputName ?? session.outputNames[0];
 
   return {

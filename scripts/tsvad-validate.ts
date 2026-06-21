@@ -23,7 +23,7 @@ import { cosineSimilarity } from "../src/lib/tsvad/cosine";
 
 const MODEL = process.argv[2] ?? "scripts/fixtures/synthetic_campplus.onnx";
 const WAV_DIR = process.argv[3];
-const INPUT_NAME = process.env.TSVAD_INPUT_NAME ?? "feats";
+const INPUT_NAME = process.env.TSVAD_INPUT_NAME; // default: the model's actual first input (auto-detected)
 const SR = 16000;
 
 const fbank = createFbankExtractor();
@@ -36,7 +36,7 @@ async function embed(session: ort.InferenceSession, samples: Float32Array): Prom
   const flat = new Float32Array(T * F);
   for (let t = 0; t < T; t++) flat.set(frames[t], t * F);
   const tensor = new ort.Tensor("float32", flat, [1, T, F]);
-  const out = await session.run({ [INPUT_NAME]: tensor });
+  const out = await session.run({ [INPUT_NAME ?? session.inputNames[0]]: tensor });
   return (out[session.outputNames[0]].data as Float32Array).slice();
 }
 
