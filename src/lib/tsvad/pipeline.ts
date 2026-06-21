@@ -1,0 +1,274 @@
+/**
+ * Target-speaker VAD pipeline (edmini-xz9) — the orchestrator that turns the pure core + a
+ * SpeakerEmbedder into a working in-browser gate.
+ *
+ * Audio graph:
+ *   MediaStreamSource(mic) → AudioWorkletNode('tsvad-gate') → MediaStreamDestination → processed track
+ *
+ * The worklet taps hop-sized frames to the main thread and applies the gain we send back. On the main
+ * thread we keep a sliding window, resample it to the model's rate, embed it, score it against the
+ * enrolled centroid, run the gate, and push the resulting gain to the worklet. Embedding is async and
+ * may be slower than the hop, so overlapping runs are dropped (we always score the freshest window).
+ *
+ * Decoupled from edmini: it takes a MediaStream in and hands a gated MediaStream out. VoiceAgent will
+ * call this between getUserMedia and pc.addTrack; the lab page wires the output to an <audio> element.
+ */
+
+import { createGate, type Gate } from "./gate";
+import { cosineSimilarity } from "./cosine";
+import { createEnrollmentAccumulator } from "./enrollment";
+import { resampleLinear } from "./resample";
+import { GATE_WORKLET_SOURCE } from "./worklet/gate-source";
+import {
+  DEFAULT_GATE_CONFIG,
+  type Enrollment,
+  type EnrollmentStore,
+  type GateConfig,
+  type GateState,
+  type SpeakerEmbedder,
+} from "./types";
+
+export interface ScoreEvent extends GateState {
+  /** Raw (un-smoothed) cosine score for this window, or null when not enrolled (pass-through). */
+  raw: number | null;
+  enrolled: boolean;
+}
+
+export interface TargetSpeakerVadOptions {
+  embedder: SpeakerEmbedder;
+  store?: EnrollmentStore;
+  gateConfig?: GateConfig;
+  /** Scoring window length (ms). Longer = steadier embeddings, more latency. */
+  windowMs?: number;
+  /** Frames the worklet posts this often (ms target); the real hop is rounded to a sample count. */
+  hopMs?: number;
+}
+
+export interface EnrollOptions {
+  /** Number of windows to average into the centroid. */
+  windows?: number;
+  /** Give up if enrollment hasn't gathered enough windows in this long. */
+  timeoutMs?: number;
+}
+
+export interface TargetSpeakerVad {
+  /** Build the audio graph from `mic` and begin scoring/gating. Idempotent-safe to call once. */
+  start(mic: MediaStream): Promise<void>;
+  /** The gated output stream (feed to pc.addTrack / an <audio>). Null before start(). */
+  getProcessedStream(): MediaStream | null;
+  /** Capture audio and build+save the target centroid. Requires start() first. */
+  enroll(opts?: EnrollOptions): Promise<Enrollment>;
+  /** Set the active target (e.g. from store.load()), or null to pass-through. */
+  setEnrollment(e: Enrollment | null): void;
+  isEnrolled(): boolean;
+  /** Subscribe to per-window score/gate events for meters/debug UI. Returns an unsubscribe fn. */
+  onScore(cb: (e: ScoreEvent) => void): () => void;
+  /** Tear down the graph and release the embedder. */
+  stop(): Promise<void>;
+}
+
+export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpeakerVad {
+  const { embedder } = opts;
+  const gateConfig = opts.gateConfig ?? DEFAULT_GATE_CONFIG;
+  const windowMs = opts.windowMs ?? 600;
+  const hopMs = opts.hopMs ?? 160;
+
+  const gate: Gate = createGate(gateConfig);
+  let enrollment: Enrollment | null = opts.store?.load() ?? null;
+
+  let ctx: AudioContext | null = null;
+  let node: AudioWorkletNode | null = null;
+  let source: MediaStreamAudioSourceNode | null = null;
+  let dest: MediaStreamAudioDestinationNode | null = null;
+  let blobUrl: string | null = null;
+
+  // Sliding window at context sample rate.
+  let ring: Float32Array = new Float32Array(0);
+  let ringFilled = 0;
+  let minScoreSamples = 0;
+
+  let scoring = false; // an embed() is in flight → drop overlapping hops
+  let lastScoreTs = 0;
+
+  // Enrollment mode: route scored embeddings into the accumulator instead of the gate.
+  let enrolling: {
+    acc: ReturnType<typeof createEnrollmentAccumulator>;
+    target: number;
+    resolve: (e: Enrollment) => void;
+    reject: (err: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+
+  const listeners = new Set<(e: ScoreEvent) => void>();
+  const emit = (e: ScoreEvent) => listeners.forEach((l) => l(e));
+
+  const setGain = (g: number) => node?.port.postMessage({ type: "gain", value: g });
+
+  function pushFrame(frame: Float32Array) {
+    if (ring.length === 0) return;
+    if (frame.length >= ring.length) {
+      ring.set(frame.subarray(frame.length - ring.length));
+      ringFilled = ring.length;
+    } else {
+      ring.copyWithin(0, frame.length);
+      ring.set(frame, ring.length - frame.length);
+      ringFilled = Math.min(ring.length, ringFilled + frame.length);
+    }
+    void maybeScore();
+  }
+
+  async function maybeScore() {
+    if (scoring || !ctx) return;
+    if (ringFilled < minScoreSamples) return;
+
+    // Pass-through when there's no target and we're not enrolling.
+    if (!enrollment && !enrolling) {
+      setGain(1);
+      emit({ raw: null, enrolled: false, ...gate.state(), gain: 1, open: true });
+      return;
+    }
+
+    scoring = true;
+    try {
+      const windowCtx = ring.slice(ring.length - ringFilled);
+      const windowModel = resampleLinear(windowCtx, ctx.sampleRate, embedder.sampleRate);
+      const emb = await embedder.embed(windowModel);
+
+      if (enrolling) {
+        enrolling.acc.add(emb);
+        setGain(1); // hear yourself while enrolling
+        if (enrolling.acc.count >= enrolling.target) finishEnroll();
+        emit({ raw: null, enrolled: false, ...gate.state(), gain: 1, open: true });
+      } else if (enrollment) {
+        const raw = cosineSimilarity(emb, enrollment.centroid);
+        const now = performance.now();
+        const dt = lastScoreTs ? now - lastScoreTs : hopMs;
+        lastScoreTs = now;
+        const state = gate.push(raw, dt);
+        setGain(state.gain);
+        emit({ raw, enrolled: true, ...state });
+      }
+    } catch {
+      // A bad window shouldn't wedge the loop; just skip it.
+    } finally {
+      scoring = false;
+    }
+  }
+
+  function finishEnroll() {
+    if (!enrolling) return;
+    const built = enrolling.acc.build(Math.min(enrolling.target, 3));
+    clearTimeout(enrolling.timer);
+    const e = enrolling;
+    enrolling = null;
+    if (!built) {
+      e.reject(new Error("enrollment: not enough usable windows"));
+      return;
+    }
+    enrollment = built;
+    opts.store?.save(built);
+    gate.reset();
+    e.resolve(built);
+  }
+
+  return {
+    async start(mic) {
+      if (ctx) return;
+      ctx = new AudioContext();
+      const blob = new Blob([GATE_WORKLET_SOURCE], { type: "application/javascript" });
+      blobUrl = URL.createObjectURL(blob);
+      await ctx.audioWorklet.addModule(blobUrl);
+
+      const hopSize = Math.max(128, Math.round((hopMs / 1000) * ctx.sampleRate));
+      ring = new Float32Array(Math.round((windowMs / 1000) * ctx.sampleRate));
+      ringFilled = 0;
+      minScoreSamples = Math.min(
+        ring.length,
+        Math.round((embedder.minAudioMs / 1000) * ctx.sampleRate),
+      );
+
+      source = ctx.createMediaStreamSource(mic);
+      node = new AudioWorkletNode(ctx, "tsvad-gate", {
+        processorOptions: { hopSize, rampPerSample: 0.0006, initialGain: enrollment ? 0 : 1 },
+      });
+      node.port.onmessage = (ev: MessageEvent) => {
+        const m = ev.data as { type: string; samples?: Float32Array };
+        if (m.type === "frame" && m.samples) pushFrame(m.samples);
+      };
+      dest = ctx.createMediaStreamDestination();
+      source.connect(node).connect(dest);
+    },
+
+    getProcessedStream() {
+      return dest?.stream ?? null;
+    },
+
+    enroll(enrollOpts) {
+      const windows = enrollOpts?.windows ?? 12;
+      const timeoutMs = enrollOpts?.timeoutMs ?? 15000;
+      return new Promise<Enrollment>((resolve, reject) => {
+        if (!ctx) {
+          reject(new Error("enroll: call start() first"));
+          return;
+        }
+        if (enrolling) {
+          reject(new Error("enroll: already enrolling"));
+          return;
+        }
+        const timer = setTimeout(() => {
+          if (enrolling) finishEnroll(); // build with whatever we have (≥3) or reject
+        }, timeoutMs);
+        enrolling = {
+          acc: createEnrollmentAccumulator(embedder.dim),
+          target: windows,
+          resolve,
+          reject,
+          timer,
+        };
+      });
+    },
+
+    setEnrollment(e) {
+      enrollment = e;
+      gate.reset();
+      setGain(e ? 0 : 1);
+    },
+
+    isEnrolled() {
+      return enrollment !== null;
+    },
+
+    onScore(cb) {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+
+    async stop() {
+      if (enrolling) {
+        clearTimeout(enrolling.timer);
+        enrolling.reject(new Error("enroll: stopped"));
+        enrolling = null;
+      }
+      try {
+        source?.disconnect();
+        node?.disconnect();
+        dest?.disconnect();
+      } catch {
+        /* graph already torn down */
+      }
+      node = null;
+      source = null;
+      dest = null;
+      if (ctx) {
+        await ctx.close();
+        ctx = null;
+      }
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+      embedder.dispose();
+      listeners.clear();
+    },
+  };
+}
