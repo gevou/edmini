@@ -14,6 +14,8 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
+import { createBrowserTargetSpeakerVad, type TargetSpeakerVad } from "@/lib/tsvad";
+import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 
 /**
  * How each interpreted harness lifecycle event becomes a narration item (9ex). `render` produces the
@@ -40,6 +42,7 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
+const GRADING_KEY = "ed_grading_enabled";
 // Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
 
@@ -181,6 +184,10 @@ export default function VoiceAgent() {
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const voiceThreadIdRef = useRef<string | null>(null);
+  const vadRef = useRef<TargetSpeakerVad | null>(null);
+  const graderRef = useRef<UtteranceGrader | null>(null);
+  if (!graderRef.current) graderRef.current = createUtteranceGrader();
+  const gradingEnabledRef = useRef(false);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
@@ -692,6 +699,7 @@ export default function VoiceAgent() {
   const startSession = useCallback(async () => {
     setErrorMsg(null);
     setStatus("connecting");
+    gradingEnabledRef.current = typeof localStorage !== "undefined" && localStorage.getItem(GRADING_KEY) === "1";
 
     const newSessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -709,7 +717,10 @@ export default function VoiceAgent() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
-      const sessionRes = await fetch("/api/session", { method: "POST", headers });
+      const sessionRes = await fetch("/api/session", {
+        method: "POST", headers,
+        body: JSON.stringify({ grading: gradingEnabledRef.current }),
+      });
       if (!sessionRes.ok) {
         const err = await sessionRes.json();
         throw new Error(err.error ?? "Failed to create session");
@@ -735,6 +746,18 @@ export default function VoiceAgent() {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      if (gradingEnabledRef.current) {
+        try {
+          const vad = await createBrowserTargetSpeakerVad({ modelUrl: "/models/campplus.onnx" });
+          await vad.start(stream);                       // taps the mic; does NOT consume it
+          vad.onScore((e) => graderRef.current!.addScore(e.raw, e.level));
+          vadRef.current = vad;
+          pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? "enrolled" : "pass-through (enroll to gate)" });
+        } catch (err) {
+          vadRef.current = null;                          // fail open — no scores → grader always responds
+          pushEvent({ kind: "error", label: "Speaker grading unavailable (responding to all)", detail: err instanceof Error ? err.message : String(err) });
+        }
+      }
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       const dc = pc.createDataChannel("oai-events");
@@ -786,6 +809,9 @@ export default function VoiceAgent() {
         )
       );
     }
+    void vadRef.current?.stop();
+    vadRef.current = null;
+    graderRef.current = createUtteranceGrader();
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     runRegistryRef.current = createRunRegistry();
