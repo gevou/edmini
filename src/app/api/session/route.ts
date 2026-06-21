@@ -7,6 +7,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let grading = false;
+  try { grading = Boolean(((await request.clone().json()) as { grading?: boolean }).grading); } catch { /* no body */ }
+
   const apiKey = request.headers.get("x-openai-key") ?? process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
@@ -150,6 +153,7 @@ Each run works in the background. Its updates are relayed to you as system notif
               threshold: 0.5,
               prefix_padding_ms: 300,
               silence_duration_ms: 800,
+              ...(grading ? { create_response: false } : {}),
             },
           },
           output: {

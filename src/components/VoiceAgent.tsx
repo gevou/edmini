@@ -14,6 +14,9 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
+import { createBrowserTargetSpeakerVad, type TargetSpeakerVad } from "@/lib/tsvad";
+import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
+import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
 /**
  * How each interpreted harness lifecycle event becomes a narration item (9ex). `render` produces the
@@ -40,6 +43,7 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
+const GRADING_KEY = "ed_grading_enabled";
 // Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
 
@@ -170,6 +174,8 @@ export default function VoiceAgent() {
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [gradingOn, setGradingOn] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -181,6 +187,11 @@ export default function VoiceAgent() {
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const voiceThreadIdRef = useRef<string | null>(null);
+  const vadRef = useRef<TargetSpeakerVad | null>(null);
+  const graderRef = useRef<UtteranceGrader | null>(null);
+  if (!graderRef.current) graderRef.current = createUtteranceGrader();
+  const gradingEnabledRef = useRef(false);
+  const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
@@ -213,12 +224,12 @@ export default function VoiceAgent() {
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
   // flight. Only call when responseActiveRef is false.
-  const fireResponse = useCallback((sendItems: () => void) => {
+  const fireResponse = useCallback((sendItems: () => void, response?: Record<string, unknown>) => {
     const dc = dcRef.current;
     if (!dc || dc.readyState !== "open") return;
     responseActiveRef.current = true;
     sendItems();
-    dc.send(JSON.stringify({ type: "response.create" }));
+    dc.send(JSON.stringify(response ? { type: "response.create", response } : { type: "response.create" }));
   }, []);
 
   const sendToolResult = useCallback(
@@ -417,6 +428,7 @@ export default function VoiceAgent() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
+    setGradingOn(localStorage.getItem(GRADING_KEY) === "1");
     if (stored) {
       setApiKey(stored);
       return;
@@ -506,6 +518,14 @@ export default function VoiceAgent() {
     }).catch(() => {});
   }, []);
 
+  // Log a bystander's words that were heard but not acted on (suppressed turns).
+  const recordHeard = useCallback((text: string | null, confidence: number) => {
+    void fetch("/api/heard", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, confidence, threadId: voiceThreadIdRef.current }),
+    }).catch(() => {});
+  }, []);
+
   const stopProgressTicker = useCallback(() => {
     if (progressTickerRef.current) {
       clearInterval(progressTickerRef.current);
@@ -528,11 +548,28 @@ export default function VoiceAgent() {
       userSpeakingRef.current = true; // never narrate over the User
       edInitiatedPendingRef.current = false; // the User is speaking → the next turn is theirs
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
+      if (gradingEnabledRef.current) graderRef.current!.begin();
     }
     if (type === "input_audio_buffer.speech_stopped") {
       userSpeakingRef.current = false;
       pushEvent({ kind: "user_paused", label: "User paused" });
       tryDrain(); // channel may now be free for a queued update
+    }
+    if (type === "input_audio_buffer.committed") {
+      if (!gradingEnabledRef.current) return;
+      const itemId = serverEvent.item_id as string | undefined;
+      const { decision, confidence } = graderRef.current!.end();
+      if (decision === "respond") {
+        pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
+        fireResponse(() => {}, { metadata: { src: "client" } });
+      } else {
+        pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
+        // Best-effort delete of the auto-committed item (keep it out of context); always mark the turn
+        // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
+        if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
+        suppressedTurnRef.current = { itemId: itemId ?? "", confidence };
+      }
+      return;
     }
     if (type === "response.created") {
       responseActiveRef.current = true; // a response is in flight (ours or model-initiated)
@@ -661,6 +698,13 @@ export default function VoiceAgent() {
 
     // User transcript — always arrives after Ed's response; backfill into most recent unmatched turn
     if (type === "conversation.item.input_audio_transcription.completed") {
+      if (suppressedTurnRef.current) {
+        const { confidence } = suppressedTurnRef.current;
+        suppressedTurnRef.current = null;
+        const t = (serverEvent.transcript as string | undefined)?.trim() ?? null;
+        recordHeard(t, confidence);
+        return;
+      }
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
@@ -687,11 +731,12 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker, recordHeard, fireResponse]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
     setStatus("connecting");
+    gradingEnabledRef.current = typeof localStorage !== "undefined" && localStorage.getItem(GRADING_KEY) === "1";
 
     const newSessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -709,7 +754,10 @@ export default function VoiceAgent() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
-      const sessionRes = await fetch("/api/session", { method: "POST", headers });
+      const sessionRes = await fetch("/api/session", {
+        method: "POST", headers,
+        body: JSON.stringify({ grading: gradingEnabledRef.current }),
+      });
       if (!sessionRes.ok) {
         const err = await sessionRes.json();
         throw new Error(err.error ?? "Failed to create session");
@@ -735,6 +783,18 @@ export default function VoiceAgent() {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      if (gradingEnabledRef.current) {
+        try {
+          const vad = await createBrowserTargetSpeakerVad({ modelUrl: "/models/campplus.onnx" });
+          await vad.start(stream);                       // taps the mic; does NOT consume it
+          vad.onScore((e) => graderRef.current!.addScore(e.raw, e.level));
+          vadRef.current = vad;
+          pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? "enrolled" : "pass-through (enroll to gate)" });
+        } catch (err) {
+          vadRef.current = null;                          // fail open — no scores → grader always responds
+          pushEvent({ kind: "error", label: "Speaker grading unavailable (responding to all)", detail: err instanceof Error ? err.message : String(err) });
+        }
+      }
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       const dc = pc.createDataChannel("oai-events");
@@ -786,6 +846,10 @@ export default function VoiceAgent() {
         )
       );
     }
+    void vadRef.current?.stop();
+    vadRef.current = null;
+    graderRef.current = createUtteranceGrader();
+    suppressedTurnRef.current = null;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     runRegistryRef.current = createRunRegistry();
@@ -842,6 +906,15 @@ export default function VoiceAgent() {
 
   return (
     <>
+    {showEnroll && vadRef.current && (
+      <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.6)", zIndex: 50, padding: 16 }}>
+        <VoiceEnrollment
+          vad={vadRef.current}
+          onComplete={() => { setShowEnroll(false); pushEvent({ kind: "info", label: "Voice enrolled — grading now gates to you" }); }}
+          onCancel={() => setShowEnroll(false)}
+        />
+      </div>
+    )}
     <div
       style={{
         height: "100dvh",
@@ -874,14 +947,29 @@ export default function VoiceAgent() {
             voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
           </p>
         </div>
-        {apiKey !== "__server__" && <button
-          onClick={clearKey}
-          title="Change API key"
-          className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
-          style={{ minHeight: 36, padding: "0 4px" }}
-        >
-          key
-        </button>}
+        <div className="flex flex-col items-end gap-1">
+          {apiKey !== "__server__" && <button
+            onClick={clearKey}
+            title="Change API key"
+            className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
+            style={{ minHeight: 36, padding: "0 4px" }}
+          >
+            key
+          </button>}
+          <button
+            onClick={() => { const next = !gradingOn; setGradingOn(next); localStorage.setItem(GRADING_KEY, next ? "1" : "0"); }}
+            title="Only respond to my voice (takes effect next session)"
+            className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
+            style={{ minHeight: 36, padding: "0 4px" }}
+          >
+            {gradingOn ? "grading on" : "grading off"}
+          </button>
+          {gradingOn && vadRef.current && status !== "idle" && (
+            <button onClick={() => setShowEnroll(true)} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
+              enroll
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Scrollable transcript — only this area scrolls */}
