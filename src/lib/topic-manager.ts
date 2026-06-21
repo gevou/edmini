@@ -21,44 +21,10 @@ export interface Topic {
 
 const TOPICS_FILE = "/tmp/ed-topics.json";
 
-const SEED_TOPICS: Topic[] = [
-  {
-    id: "blog-tds-submission",
-    name: "Blog TDS Submission",
-    status: "waiting",
-    category: "publishing",
-    summary: "Draft ready. Pending opening paragraph choice (A or B). Cover note finalized.",
-    history: [],
-    lastActivity: Date.now() - 1000 * 60 * 30,
-  },
-  {
-    id: "ed-mini-hackathon",
-    name: "Ed Mini Hackathon",
-    status: "active",
-    category: "engineering",
-    summary: "Voice agent deployed on Vercel. TopicManager being built. Ship to Prod hackathon tomorrow.",
-    history: [],
-    lastActivity: Date.now() - 1000 * 60 * 5,
-  },
-  {
-    id: "product-launch-planning",
-    name: "Product Launch Planning",
-    status: "waiting",
-    category: "planning",
-    summary: "Q3 product launch meeting scheduled for next week. Need to finalize feature list, prepare demo, and send stakeholder invites. Waiting on design team for final mockups.",
-    history: [],
-    lastActivity: Date.now() - 1000 * 60 * 60 * 2,
-  },
-  {
-    id: "general",
-    name: "General",
-    status: "active",
-    category: "engineering",
-    summary: "General conversations and unclassified messages.",
-    history: [],
-    lastActivity: Date.now() - 1000 * 60 * 60 * 24,
-  },
-];
+// No seed topics. The bus (Hermes/Discord) is live, so Ed's context comes from real runs/threads
+// (the ledger — see edmini-iee) rather than mock projects. Topics are created on demand; an empty
+// list means classifyTopic returns "general" (the hardcoded fallback) and nothing fake is surfaced.
+const SEED_TOPICS: Topic[] = [];
 
 let topics: Topic[] = [];
 let initialized = false;
