@@ -180,6 +180,7 @@ export default function VoiceAgent() {
   const turnCounterRef = useRef(0);
   const currentTurnIdRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const voiceThreadIdRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
@@ -484,6 +485,16 @@ export default function VoiceAgent() {
     scrollToBottom();
   }, [turns, scrollToBottom]);
 
+  const recordVoiceThread = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch("/api/threads", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ medium: "voice", transport: "openai-realtime", apiIdentifier: sessionId, runId: null }),
+      });
+      if (res.ok) voiceThreadIdRef.current = (await res.json()).threadId as string;
+    } catch { /* non-blocking */ }
+  }, []);
+
   // Record Ed's spoken output (the edmini → User boundary crossing) in the ledger (edmini-rv9), so
   // the whole conversation is durable/auditable, not just live in the browser. Fire-and-forget.
   const logVoiceOutput = useCallback((text: string) => {
@@ -687,6 +698,7 @@ export default function VoiceAgent() {
         ? `sess_${crypto.randomUUID()}`
         : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     sessionIdRef.current = newSessionId;
+    void recordVoiceThread(newSessionId);
     pushEvent({
       kind: "session_started",
       label: "Voice session started",
@@ -757,7 +769,7 @@ export default function VoiceAgent() {
       setStatus("error");
       stopSession();
     }
-  }, [handleDataChannelMessage, handleLedgerEvent, apiKey]);
+  }, [handleDataChannelMessage, handleLedgerEvent, apiKey, recordVoiceThread]);
 
   const stopSession = useCallback(() => {
     const activeId = currentTurnIdRef.current;
@@ -787,6 +799,7 @@ export default function VoiceAgent() {
     pcRef.current = null;
     if (audioElRef.current) audioElRef.current.srcObject = null;
     modelSpeakingFlagRef.current = false;
+    voiceThreadIdRef.current = null;
     if (sessionIdRef.current) {
       pushEvent({
         kind: "session_ended",
