@@ -20,6 +20,45 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-21 — `shd` verified live; the feedback loop; and the conversational-presence frame
+
+Live-tested `shd` on device and **verified it end-to-end from the ledger**. First run looked like a "race
+condition" — Ed fired four responses to a single "Hey Ed," reeling off the old seed projects. The logs told
+the real story: it was an **audio feedback loop** (speakerphone → mic re-captures Ed's own voice → server-VAD
+treats it as new user turns → Ed acks itself: *"Got it." / "Sure thing."*). Not `shd`. The user then ran the
+actual dispatch test, and the ledger was unambiguous: run `run_9e36…` → `task_dispatch` (minted `run_`/`thr_`,
+mapped to Discord thread `1518…`) → **16/16 harness replies keyed by the minted `run_`, 0 by the snowflake** —
+the worker resolved every inbound message back to our id, narration not dropped, through `run_done`. The exact
+thing that, broken, would have dropped narration. `shd` + `obm` flipped to **verified**.
+
+Housekeeping that fell out:
+- **Mock data removed** (`edmini-obm`): emptied `SEED_TOPICS` so Ed stops reading fake projects now the bus is
+  live; classifier already falls back to `general`. Ledger re-wiped clean.
+- **Echo stopgap** (`edmini-1c8`): `getUserMedia` now sets `echoCancellation/noiseSuppression/autoGainControl`
+  instead of bare `{audio:true}`. Helps on speaker; the real fix is target-speaker VAD.
+- **Vercel noise:** the `ERROR` deployments were all the beads `__dolt_remote_info__` ref (created by
+  `bd dolt push`) that Vercel auto-deploys and fails. Added `vercel.json` `git.deploymentEnabled:false` for it.
+
+**The bigger thread: conversational presence.** The user pointed me at a new memo,
+[`conversational-presence.md`](docs/architecture/conversational-presence.md) — the **input-side counterpart to
+the supervisor thesis**. Its move: the supervisor isn't "the thing that runs agents," it's "the thing that
+decides who holds the floor and when, including whether *it* should speak" — and dispatch is just the case
+where the answer is "an agent." Three modes as a progression of floor control (**coordinate → discuss →
+participate**), three independently-gated decisions (**capture / commit / contribute**, with memory liberal but
+speech conservative), and a listening stack — **channel routing → target-speaker VAD → semantic VAD → supervisor
+gates** — that makes addressing tractable by *structure*, not pure inference. Each audio input is a `shd` `voice`
+thread; TS-VAD is v0 of the ladder. It folds `qo3`, `shd`, and the in-flight TS-VAD into one frame.
+
+And **PR #5 / TS-VAD** turns out to be exactly that v0 — a standalone, tested (`src/lib/tsvad/`, 29-test pure
+core: cosine/gate/enrollment/fbank/resample) mic-gating feature, CAM++ ONNX (Apache-2.0 weights, deliberately
+*not* VoxCeleb for commercial safety), guided enrollment UI, a `/tsvad-lab` page — **not yet wired** into
+`VoiceAgent` and **not yet validated** on the real model/device. Its bead `edmini-xz9` never synced from the CI
+container; recreated canonically as **`edmini-7vr`**. The handoff's path is sound; the gating blocker is the
+real model + on-device validation, which needs the user — so the move is validate-then-wire-behind-a-flag, not
+merge-and-hope.
+
+---
+
 ### 2026-06-20 — shipped `edmini-shd`: subagent-driven build of the channel-agnostic identity model
 
 Executed the `shd` plan end-to-end via **subagent-driven development** — fresh subagent per task group,
