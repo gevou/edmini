@@ -25,6 +25,7 @@ export interface LedgerEvent {
   seq?: number;
   ts?: string; // ISO timestamptz
   runId: string | null; // Discord thread snowflake (null for pre-run/system events)
+  threadId?: string | null; // minted thr_<uuid> — the conversation locus (edmini-shd)
   source: LedgerSource;
   kind: string; // an envelope kind or a UI event kind
   payload: Record<string, unknown>;
@@ -36,6 +37,7 @@ export interface LedgerRow {
   seq: number;
   ts: string;
   run_id: string | null;
+  thread_id: string | null;
   source: LedgerSource;
   kind: string;
   payload: Record<string, unknown> | null;
@@ -47,6 +49,7 @@ export function fromRow(r: LedgerRow): LedgerEvent {
     seq: r.seq,
     ts: r.ts,
     runId: r.run_id,
+    threadId: r.thread_id ?? null,
     source: r.source,
     kind: r.kind,
     payload: r.payload ?? {},
@@ -54,8 +57,8 @@ export function fromRow(r: LedgerRow): LedgerEvent {
 }
 
 /** Writable columns for an insert — the DB fills id/seq/ts. */
-export function toInsert(e: LedgerEvent): Pick<LedgerRow, "run_id" | "source" | "kind" | "payload"> {
-  return { run_id: e.runId, source: e.source, kind: e.kind, payload: e.payload ?? {} };
+export function toInsert(e: LedgerEvent): Pick<LedgerRow, "run_id" | "thread_id" | "source" | "kind" | "payload"> {
+  return { run_id: e.runId, thread_id: e.threadId ?? null, source: e.source, kind: e.kind, payload: e.payload ?? {} };
 }
 
 /** Current lifecycle state of a run, derived from its events. Mirrors the SQL `runs` view. */

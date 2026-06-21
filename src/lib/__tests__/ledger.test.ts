@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { fromRow, toInsert, projectRuns, type LedgerEvent, type LedgerRow } from "../ledger";
 
+
 describe("row mapping", () => {
   it("fromRow maps snake_case → camelCase and defaults null payload", () => {
     const row: LedgerRow = {
@@ -8,6 +9,7 @@ describe("row mapping", () => {
       seq: 7,
       ts: "2026-06-18T00:00:00Z",
       run_id: "thread-1",
+      thread_id: null,
       source: "harness",
       kind: "run_output",
       payload: null,
@@ -17,6 +19,7 @@ describe("row mapping", () => {
       seq: 7,
       ts: "2026-06-18T00:00:00Z",
       runId: "thread-1",
+      threadId: null,
       source: "harness",
       kind: "run_output",
       payload: {},
@@ -35,6 +38,7 @@ describe("row mapping", () => {
     };
     expect(toInsert(e)).toEqual({
       run_id: "t9",
+      thread_id: null,
       source: "edmini",
       kind: "task_dispatch",
       payload: { instruction: "deploy" },
@@ -84,5 +88,20 @@ describe("projectRuns", () => {
     const runs = projectRuns(events).sort((x, y) => x.runId.localeCompare(y.runId));
     expect(runs.map((r) => r.runId)).toEqual(["A", "B"]);
     expect(runs[1].lastRunKind).toBe("run_failed");
+  });
+});
+
+describe("ledger threadId mapping", () => {
+  it("maps thread_id <-> threadId in fromRow/toInsert", () => {
+    const row = { id: "e1", seq: 1, ts: "t", run_id: "run_1", thread_id: "thr_1",
+      source: "harness" as const, kind: "run_output", payload: {} };
+    expect(fromRow(row).threadId).toBe("thr_1");
+    expect(toInsert({ runId: "run_1", threadId: "thr_1", source: "harness", kind: "x", payload: {} }))
+      .toMatchObject({ run_id: "run_1", thread_id: "thr_1" });
+  });
+  it("defaults threadId to null", () => {
+    const row = { id: "e1", seq: 1, ts: "t", run_id: null, thread_id: null,
+      source: "user" as const, kind: "x", payload: {} };
+    expect(fromRow(row).threadId).toBeNull();
   });
 });
