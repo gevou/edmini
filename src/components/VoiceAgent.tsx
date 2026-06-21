@@ -16,6 +16,7 @@ import {
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
 import { createBrowserTargetSpeakerVad, type TargetSpeakerVad } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
+import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
 /**
  * How each interpreted harness lifecycle event becomes a narration item (9ex). `render` produces the
@@ -173,6 +174,8 @@ export default function VoiceAgent() {
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [gradingOn, setGradingOn] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -425,6 +428,7 @@ export default function VoiceAgent() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
+    setGradingOn(localStorage.getItem(GRADING_KEY) === "1");
     if (stored) {
       setApiKey(stored);
       return;
@@ -899,6 +903,15 @@ export default function VoiceAgent() {
 
   return (
     <>
+    {showEnroll && vadRef.current && (
+      <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.6)", zIndex: 50, padding: 16 }}>
+        <VoiceEnrollment
+          vad={vadRef.current}
+          onComplete={() => { setShowEnroll(false); pushEvent({ kind: "info", label: "Voice enrolled — grading now gates to you" }); }}
+          onCancel={() => setShowEnroll(false)}
+        />
+      </div>
+    )}
     <div
       style={{
         height: "100dvh",
@@ -931,14 +944,29 @@ export default function VoiceAgent() {
             voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
           </p>
         </div>
-        {apiKey !== "__server__" && <button
-          onClick={clearKey}
-          title="Change API key"
-          className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
-          style={{ minHeight: 36, padding: "0 4px" }}
-        >
-          key
-        </button>}
+        <div className="flex flex-col items-end gap-1">
+          {apiKey !== "__server__" && <button
+            onClick={clearKey}
+            title="Change API key"
+            className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
+            style={{ minHeight: 36, padding: "0 4px" }}
+          >
+            key
+          </button>}
+          <button
+            onClick={() => { const next = !gradingOn; setGradingOn(next); localStorage.setItem(GRADING_KEY, next ? "1" : "0"); }}
+            title="Only respond to my voice (takes effect next session)"
+            className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
+            style={{ minHeight: 36, padding: "0 4px" }}
+          >
+            {gradingOn ? "grading on" : "grading off"}
+          </button>
+          {gradingOn && vadRef.current && status !== "idle" && (
+            <button onClick={() => setShowEnroll(true)} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
+              enroll
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Scrollable transcript — only this area scrolls */}
