@@ -70,6 +70,16 @@ the user audio even with `create_response:false`; we never send `input_audio_buf
 decide-later promotion later — not built here). Transcript (for the `heard` payload) arrives on
 `conversation.item.input_audio_transcription.completed`, slightly after — log it then if suppressed.
 
+> **Considered alternative — speculative pre-authorization (deferred).** *What it means:* once the
+> grade is confidently "the user" partway through an utterance, flip `create_response` to `true` in
+> advance (via `session.update`) so OpenAI auto-responds the instant the turn ends, with no client
+> trigger round-trip at all. *Why deferred:* it would decide on the **least-reliable early-ramp
+> windows** (less accurate than grading the full utterance), and the mid-utterance `session.update`
+> races the turn-end (risking dead air or a double response) and any speaker change after the flip. The
+> manual path is already ~zero perceptible latency — the decision is *precomputed in parallel*, so the
+> client just fires `response.create` immediately on `committed`. Revisit only if that trigger
+> round-trip proves perceptible on device, and gate the flip on *sustained* confidence, not first.
+
 **Clock alignment** is coarse-but-sufficient: buffer the `onScore` samples that arrive (by
 `performance.now()`) between the `speech_started` and `speech_stopped` data-channel events. Utterance-
 level averaging makes the few-ms event skew irrelevant.
