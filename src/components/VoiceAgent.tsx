@@ -562,10 +562,12 @@ export default function VoiceAgent() {
       if (decision === "respond") {
         pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
         fireResponse(() => {}, { metadata: { src: "client" } });
-      } else if (itemId) {
+      } else {
         pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
-        dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
-        suppressedTurnRef.current = { itemId, confidence };
+        // Best-effort delete of the auto-committed item (keep it out of context); always mark the turn
+        // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
+        if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
+        suppressedTurnRef.current = { itemId: itemId ?? "", confidence };
       }
       return;
     }
@@ -847,6 +849,7 @@ export default function VoiceAgent() {
     void vadRef.current?.stop();
     vadRef.current = null;
     graderRef.current = createUtteranceGrader();
+    suppressedTurnRef.current = null;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     runRegistryRef.current = createRunRegistry();
