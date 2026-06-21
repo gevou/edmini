@@ -20,6 +20,39 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-20 — shipped `edmini-shd`: subagent-driven build of the channel-agnostic identity model
+
+Executed the `shd` plan end-to-end via **subagent-driven development** — fresh subagent per task group,
+review gate per group, infra steps (Supabase, Fly) kept on the controller. Landed and deployed the same
+night the design was written.
+
+The shape that worked: I grouped the 12 plan tasks into 5 implementer dispatches (rename / data-layer /
+transport+bus / worker / voice-thread), reviewed each, and handled the destructive/outward-facing steps
+myself (the **prototype DB wipe + migration** via `psql $SUPABASE_DB_URL`, the **Fly worker deploy**, the
+**merge+push**). A worktree (`git`, native `EnterWorktree`) isolated the work; subagents inherited its cwd.
+
+What review caught that per-task green tests didn't: (1) the rename subagent had `git add -A`'d a **10K-line
+`pnpm-lock.yaml` churn** from my own earlier `pnpm install` — reverted to `origin/main`; (2) the rename
+wasn't actually "full reach" — the **LLM system-prompt copy** ("Current threads:", "which thread the User
+means") still said *thread*, exactly the ambiguity the rename existed to kill — fixed; (3) the final
+whole-feature reviewer verified the **id round-trip** (dispatch mints `run_`/`thr_` → registry; worker
+resolves the Discord handle back to the *same* ids so narration isn't dropped; answer/cancel resolve back
+to the handle) and flagged a double `byRunId` query + a stale comment, both cleaned up. The subagents also
+caught things the plan missed: importers in `dashboard/page.tsx` and `supervisor/llm.ts`, and that
+`vitest.config.ts` didn't include `worker/**` so the worker tests weren't running.
+
+Outcome: 101 tests green, tsc + build clean, merged to `main` (`f4a6cc2`, 15 commits), Vercel auto-deployed
+(prod 200), Fly worker redeployed ("ready as Edmini#0725; tapping bus"). `shd` closed `needs-verification`
+(awaiting on-device voice test), which **unblocked `iee` (P1) and `zo8` (P2)**. Two follow-ups filed: the
+orphan-thread-on-insert-failure hardening, and (deferred to `iee`) tagging `voice_output`/`user_utterance`
+events with the recorded voice `thread_id`.
+
+Content potential: a clean case study in *agent-orchestrated implementation* — what the review gate caught
+that green tests didn't (lockfile churn, half-done rename, double query), and why the destructive/outward
+steps stayed with the human-in-the-loop controller rather than the subagents.
+
+---
+
 ### 2026-06-20 — designing for the graph: identity off the label, the thread/topic split, an over-engineering guardrail
 
 A long **design-only** session on `iee` (session memory) that kept widening as the user pulled on
