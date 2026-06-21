@@ -57,6 +57,17 @@ const gated = vad.getProcessedStream();           // gated MediaStream
 
 Lab harness: **`/tsvad-lab`** — enroll, watch live score/gate meters, monitor the gated output.
 
+### Guided enrollment (Capture v1)
+
+`ui/VoiceEnrollment.tsx` is the one-screen onboarding: talk naturally ~10s with a live level meter +
+progress, then an instant self-test ("say something → watch it go green"). Single enrolled speaker;
+no scripted phrases (CAM++ d-vectors are text-independent) and no adaptation yet. Silence is gated out
+of the centroid via an RMS floor (`level.ts`), so quiet windows never pollute enrollment.
+
+```tsx
+<VoiceEnrollment vad={vad} onComplete={(e) => /* enrolled */} onCancel={...} />
+```
+
 ## Plugging into edmini (next step)
 
 In `VoiceAgent.startSession`, between `getUserMedia` and `pc.addTrack`:

@@ -18,6 +18,7 @@ import { createGate, type Gate } from "./gate";
 import { cosineSimilarity } from "./cosine";
 import { createEnrollmentAccumulator } from "./enrollment";
 import { resampleLinear } from "./resample";
+import { rms } from "./level";
 import { GATE_WORKLET_SOURCE } from "./worklet/gate-source";
 import {
   DEFAULT_GATE_CONFIG,
@@ -32,6 +33,20 @@ export interface ScoreEvent extends GateState {
   /** Raw (un-smoothed) cosine score for this window, or null when not enrolled (pass-through). */
   raw: number | null;
   enrolled: boolean;
+  /** Input RMS level [0,1] for this window — drives the UI level meter. */
+  level: number;
+}
+
+/** Live enrollment progress for the guided-capture UI. */
+export interface EnrollProgress {
+  /** Voiced windows captured so far. */
+  collected: number;
+  /** Target window count. */
+  target: number;
+  /** Current input RMS level [0,1]. */
+  level: number;
+  /** Whether the current window passed the voicing floor (false = too quiet, not counted). */
+  voiced: boolean;
 }
 
 export interface TargetSpeakerVadOptions {
@@ -45,10 +60,14 @@ export interface TargetSpeakerVadOptions {
 }
 
 export interface EnrollOptions {
-  /** Number of windows to average into the centroid. */
+  /** Number of voiced windows to average into the centroid. */
   windows?: number;
   /** Give up if enrollment hasn't gathered enough windows in this long. */
   timeoutMs?: number;
+  /** RMS floor below which a window is treated as silence and skipped (not counted, not averaged). */
+  minLevel?: number;
+  /** Called per window during capture, for the live meter/progress UI. */
+  onProgress?: (p: EnrollProgress) => void;
 }
 
 export interface TargetSpeakerVad {
@@ -94,6 +113,8 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
   let enrolling: {
     acc: ReturnType<typeof createEnrollmentAccumulator>;
     target: number;
+    minLevel: number;
+    onProgress?: (p: EnrollProgress) => void;
     resolve: (e: Enrollment) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
@@ -121,24 +142,36 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
     if (scoring || !ctx) return;
     if (ringFilled < minScoreSamples) return;
 
+    const windowCtx = ring.slice(ring.length - ringFilled);
+    const level = rms(windowCtx);
+
     // Pass-through when there's no target and we're not enrolling.
     if (!enrollment && !enrolling) {
       setGain(1);
-      emit({ raw: null, enrolled: false, ...gate.state(), gain: 1, open: true });
+      emit({ raw: null, enrolled: false, level, ...gate.state(), gain: 1, open: true });
+      return;
+    }
+
+    // During enrollment, skip silence cheaply — before paying for an embed — so quiet windows never
+    // pollute the centroid and the progress bar only advances on real speech.
+    if (enrolling && level < enrolling.minLevel) {
+      enrolling.onProgress?.({ collected: enrolling.acc.count, target: enrolling.target, level, voiced: false });
+      setGain(1);
+      emit({ raw: null, enrolled: false, level, ...gate.state(), gain: 1, open: true });
       return;
     }
 
     scoring = true;
     try {
-      const windowCtx = ring.slice(ring.length - ringFilled);
       const windowModel = resampleLinear(windowCtx, ctx.sampleRate, embedder.sampleRate);
       const emb = await embedder.embed(windowModel);
 
       if (enrolling) {
         enrolling.acc.add(emb);
+        enrolling.onProgress?.({ collected: enrolling.acc.count, target: enrolling.target, level, voiced: true });
         setGain(1); // hear yourself while enrolling
         if (enrolling.acc.count >= enrolling.target) finishEnroll();
-        emit({ raw: null, enrolled: false, ...gate.state(), gain: 1, open: true });
+        emit({ raw: null, enrolled: false, level, ...gate.state(), gain: 1, open: true });
       } else if (enrollment) {
         const raw = cosineSimilarity(emb, enrollment.centroid);
         const now = performance.now();
@@ -146,7 +179,7 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
         lastScoreTs = now;
         const state = gate.push(raw, dt);
         setGain(state.gain);
-        emit({ raw, enrolled: true, ...state });
+        emit({ raw, enrolled: true, level, ...state });
       }
     } catch {
       // A bad window shouldn't wedge the loop; just skip it.
@@ -206,6 +239,7 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
     enroll(enrollOpts) {
       const windows = enrollOpts?.windows ?? 12;
       const timeoutMs = enrollOpts?.timeoutMs ?? 15000;
+      const minLevel = enrollOpts?.minLevel ?? 0.01;
       return new Promise<Enrollment>((resolve, reject) => {
         if (!ctx) {
           reject(new Error("enroll: call start() first"));
@@ -221,6 +255,8 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
         enrolling = {
           acc: createEnrollmentAccumulator(embedder.dim),
           target: windows,
+          minLevel,
+          onProgress: enrollOpts?.onProgress,
           resolve,
           reject,
           timer,

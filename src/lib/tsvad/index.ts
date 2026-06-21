@@ -20,6 +20,7 @@ export { createGate, type Gate } from "./gate";
 export { createEnrollmentAccumulator, type EnrollmentAccumulator } from "./enrollment";
 export { createFbankExtractor, applyCMN, DEFAULT_FBANK_CONFIG, type FbankConfig } from "./fbank";
 export { resampleLinear } from "./resample";
+export { rms, dbfs, isVoiced } from "./level";
 export { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-onnx";
 export { createLocalStorageEnrollmentStore } from "./enrollment-store";
 export {
@@ -28,6 +29,7 @@ export {
   type TargetSpeakerVadOptions,
   type ScoreEvent,
   type EnrollOptions,
+  type EnrollProgress,
 } from "./pipeline";
 
 import { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-onnx";

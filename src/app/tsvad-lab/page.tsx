@@ -16,8 +16,9 @@ import {
   type ScoreEvent,
   type TargetSpeakerVad,
 } from "@/lib/tsvad";
+import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
-type Phase = "idle" | "loading" | "running" | "enrolling" | "error";
+type Phase = "idle" | "loading" | "running" | "error";
 
 const DEFAULT_MODEL_URL = "/models/campplus.onnx";
 
@@ -26,6 +27,7 @@ export default function TsvadLabPage() {
   const [modelUrl, setModelUrl] = useState(DEFAULT_MODEL_URL);
   const [error, setError] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  const [showEnroll, setShowEnroll] = useState(false);
   const [score, setScore] = useState<ScoreEvent | null>(null);
   const [monitor, setMonitor] = useState(false);
 
@@ -51,20 +53,7 @@ export default function TsvadLabPage() {
     }
   }, [modelUrl]);
 
-  const enroll = useCallback(async () => {
-    const vad = vadRef.current;
-    if (!vad) return;
-    setPhase("enrolling");
-    setError(null);
-    try {
-      await vad.enroll({ windows: 12 });
-      setEnrolled(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPhase("running");
-    }
-  }, []);
+  // Enrollment now runs through the guided <VoiceEnrollment> component below.
 
   const clearEnrollment = useCallback(() => {
     try {
@@ -124,11 +113,11 @@ export default function TsvadLabPage() {
           <button onClick={stop} style={btn("#374151")}>Stop</button>
         )}
         <button
-          onClick={enroll}
-          disabled={phase !== "running"}
-          style={btn(phase === "running" ? "#16a34a" : "#1f2937")}
+          onClick={() => setShowEnroll(true)}
+          disabled={phase !== "running" || showEnroll}
+          style={btn(phase === "running" && !showEnroll ? "#16a34a" : "#1f2937")}
         >
-          {phase === "enrolling" ? "Enrolling…" : enrolled ? "Re-enroll" : "Enroll my voice"}
+          {enrolled ? "Re-enroll" : "Enroll my voice"}
         </button>
         {enrolled && <button onClick={clearEnrollment} style={btn("#7f1d1d")}>Clear enrollment</button>}
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#9aa" }}>
@@ -143,6 +132,19 @@ export default function TsvadLabPage() {
       </div>
 
       {error && <p style={{ color: "#fca5a5", fontSize: 13, marginBottom: 12 }}>⚠ {error}</p>}
+
+      {showEnroll && phase === "running" && vadRef.current && (
+        <div style={{ marginBottom: 20 }}>
+          <VoiceEnrollment
+            vad={vadRef.current}
+            onComplete={() => {
+              setEnrolled(true);
+              setShowEnroll(false);
+            }}
+            onCancel={() => setShowEnroll(false)}
+          />
+        </div>
+      )}
 
       {/* Meters */}
       <Meter label="Target score (raw)" value={score?.raw != null ? norm(score.raw) : 0} color="#38bdf8" text={score?.raw != null ? score.raw.toFixed(3) : "—"} />
