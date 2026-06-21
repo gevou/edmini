@@ -10,12 +10,14 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "worker": "tsx worker/index.ts"
+    "worker": "tsx worker/index.ts",
+    "tsvad:validate": "tsx scripts/tsvad-validate.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
     "discord.js": "^14.26.4",
     "next": "15.5.15",
+    "onnxruntime-web": "^1.27.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "workflow": "^4.2.4"
@@ -28,6 +30,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.15",
+    "onnxruntime-node": "^1.27.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.0",
     "typescript": "^5",

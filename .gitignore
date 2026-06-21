@@ -25,3 +25,7 @@ infra/**/*.local.env
 
 # TypeScript incremental build artifact
 tsconfig.tsbuildinfo
+
+# tsvad model weights (downloaded, not committed)
+public/models/*.onnx
+samples/
