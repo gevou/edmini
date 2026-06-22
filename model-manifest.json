@@ -1,0 +1,32 @@
+{
+  "$comment": "Provenance of hosted ML models. Records what version of which model is deployed so updates can be detected. Run `pnpm models:check` to compare each recorded version against its upstream source. When re-hosting (after re-running the edmini-ce9 bake-off on a new candidate), update the matching entry here in the same change.",
+  "models": [
+    {
+      "id": "tsvad-speaker-embedder",
+      "name": "CAM++ zh_en bilingual speaker embedder",
+      "purpose": "Target-speaker VAD / speaker grading (src/lib/tsvad)",
+      "source": {
+        "type": "huggingface",
+        "repo": "csukuangfj/speaker-embedding-models",
+        "file": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+        "revision": "main",
+        "resolveUrl": "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+      },
+      "version": {
+        "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2",
+        "repoCommit": "0743f301363dec56491a490f6d6cbc9d67f9a3bf",
+        "sizeBytes": 28281164
+      },
+      "hosted": {
+        "provider": "vercel-blob",
+        "store": "edmini-tsvad",
+        "url": "https://igdjybhnfu4rxksj.public.blob.vercel-storage.com/campplus_zh_en.onnx",
+        "envVar": "NEXT_PUBLIC_TSVAD_MODEL_URL",
+        "hostedAt": "2026-06-22"
+      },
+      "io": { "input": "x", "output": "embedding", "embeddingDim": 192, "fbankMelBins": 80 },
+      "license": "Apache-2.0 (3D-Speaker; non-VoxCeleb)",
+      "chosenBy": "edmini-ce9 bake-off — English separation margin 0.538 vs 0.224 (CAM++ zh-cn baseline)"
+    }
+  ]
+}

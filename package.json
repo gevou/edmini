@@ -13,7 +13,8 @@
     "worker": "tsx worker/index.ts",
     "tsvad:validate": "tsx scripts/tsvad-validate.ts",
     "ledger:seed": "tsx scripts/ledger-seed.ts",
-    "test:iee": "vitest run src/app/api/__tests__/iee-scenarios.integration.test.ts"
+    "test:iee": "vitest run src/app/api/__tests__/iee-scenarios.integration.test.ts",
+    "models:check": "tsx scripts/check-model-updates.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
