@@ -69,7 +69,18 @@ const enr = (name?: string): Enrollment => ({
   centroid: Float32Array.from([1, 0, 0]), windowCount: 30, dim: 3, enrolledAt: 1, name,
 });
 
-beforeEach(() => localStorage.clear());
+// vitest runs in the "node" environment (no DOM), so provide a minimal in-memory localStorage.
+beforeEach(() => {
+  const m = new Map<string, string>();
+  globalThis.localStorage = {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => { m.set(k, v); },
+    removeItem: (k: string) => { m.delete(k); },
+    clear: () => m.clear(),
+    key: () => null,
+    get length() { return m.size; },
+  } as unknown as Storage;
+});
 
 describe("createLocalStorageRosterStore", () => {
   it("returns an empty roster when nothing is stored", () => {
