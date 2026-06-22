@@ -1,8 +1,25 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `22b9cd7`+. Beads synced to the Dolt remote
-(`bd dolt push --remote origin`; `refs/dolt/data` on GitHub).
+`main` (git), in sync with origin. Latest `1bb2fc8`. Beads synced to the Dolt remote
+(`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-21) — session memory + speaker-ID accuracy shipped (both needs-verification)
+Two independent streams developed in parallel worktrees, both merged `--no-ff` to main and pushed (`1bb2fc8`,
+triggers prod deploy). 172 tests / tsc / build green on merged main.
+
+- **`iee` session memory — CLOSED+needs-verification.** Reads the ledger back on session start: registry
+  rehydration (fixes cross-session event drop), catch-up-on-resume (audio-off misses), dumb Recent-history
+  block + `search_history` tool + `/api/history` & `/api/conversation/utterance` routes, `prevRunId`
+  provenance, User-utterance logging. 8 tasks, subagent-driven + per-task review + opus whole-branch review.
+- **`ce9` accuracy bake-off — CLOSED+needs-verification.** WINNER **CAM++ zh_en**: separation margin
+  **0.538 vs 0.224** baseline (diff-cos 0.634→0.294), same 54ms. ERES2Net (zh-cn) worse+slower — bilingual
+  *data*, not architecture, is the English lever. New pure `speaker-classifier.ts` (top1−top2 gate,
+  single-centroid back-compat, 9 tests). Unblocks `5on` (host `campplus_zh_en.onnx` on Vercel Blob).
+
+**NEXT (user, on device):** live checks (a)/(b)/(c) for `iee`; verify the jsonb `text`/`author`
+`search_history` filters live (`payload::text` cast); re-tune `ce9` thresholds for the wider zh_en margin.
+Then `5on` (host the chosen model). See `.remember/remember.md` for the full handoff.
 
 ## CHECKPOINT (2026-06-20) — v1 voice loop working; live-testing & hardening
 v1 is functionally complete and live at **https://edmini.vercel.app** (prod). Bus worker runs on **Fly**

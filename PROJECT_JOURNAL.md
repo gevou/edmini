@@ -20,6 +20,70 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-21 — two streams in parallel: session memory shipped, and the bake-off that overturned its own roadmap
+
+Ran two independent workstreams at once, each in its own git worktree, and merged both to main
+(`1bb2fc8`). The user's framing: *"Run two parallel streams in separate worktrees per the agreed plan… Don't
+host the model yet (that's edmini-5on, after we pick)."* So: **iee** (session memory) I drove myself —
+writing-plans → subagent-driven execution with per-task review; **ce9** (accuracy bake-off) went to a
+background agent in an isolated worktree.
+
+**The surprise was ce9, and it overturned the roadmap.** The speaker-identity roadmap had ERES2Net pencilled
+in as *"a stronger architecture than CAM++… the real N-way accuracy lever"* (item 2), with CAM++ zh_en as
+the *"cheapest try."* I expected the bigger architecture to win. It didn't — and not by a little. On 2
+English speakers × 3 clips each (16 kHz mono, converted from the user's phone recordings), the numbers:
+
+| model | same-cos | diff-cos | **margin** | latency |
+|---|---|---|---|---|
+| CAM++ zh-cn (baseline) | 0.858 | 0.634 | 0.224 | 55 ms |
+| **CAM++ zh_en** ⭐ | 0.832 | **0.294** | **0.538** | 54 ms |
+| ERES2Net (zh-cn) | 0.888 | 0.682 | 0.205 | 646 ms |
+| ERES2NetV2 (zh-cn) | 0.883 | 0.637 | 0.246 | 209 ms |
+
+CAM++ zh_en **more than doubled the English separation margin** — and it did it by *collapsing the
+different-speaker cosine* (0.634 → 0.294), i.e. pushing *different* English voices apart, exactly the failure
+mode of a Mandarin-trained model on English. ERES2Net (the stronger arch) was actually *worse* on English
+and 4–12× slower. The lesson, now written into the roadmap: **for English, bilingual training *data* is the
+lever, not a bigger architecture.** The reason zh-cn looked merely "compressed" (live self-score 0.4–0.6) was
+never the architecture — it was the language of the data. The stronger-arch hypothesis was a plausible
+intuition that the measurement killed. (Caveat logged: 2 speakers × 3 clips is directional, not definitive.)
+The same agent also shipped the `top1−top2` margin gate (`speaker-classifier.ts`) — accept only if the best
+centroid beats the runner-up by a margin, else `"unknown"`, never guess — with single-centroid back-compat
+so today's grader is untouched and the N-way path is ready for `q1e`. Provenance footgun avoided: the HF
+short name `campplus_zh_en.onnx` **404s**; the real file is
+`3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx`.
+
+**iee — session memory** was the methodical half. The spec was already approved, so writing-plans turned it
+into 8 TDD tasks and subagent-driven-development executed them: a fresh implementer per task, a spec+quality
+reviewer after each, an opus whole-branch review at the end. Two moments worth keeping:
+
+- **The plan carried a type bug and the implementer caught it.** My plan's catch-up mapping wrote
+  `priority: 1` — but `NarrationItem.priority` is the union `"high" | "low"`, not a number. I'd flagged the
+  `NarrationBatch` shape as "match at integration" in the plan; at dispatch I corrected it to
+  `NARRATE[e.kind]?.priority ?? "low"`, and the implementer applied it and reported the override. A reminder
+  that plan code is a *starting point*, not ground truth — the reviewer rubric says exactly that.
+- **The ledger was already built to make this free.** The bus route *already* accepted and persisted
+  `prevRunId` into the `task_dispatch` payload — so the whole provenance feature collapsed to one client line:
+  `registry.resolveLabel(label)` *before* register. The spec's thesis ("record relationships as raw facts in
+  the append-only ledger; never manage them") paying off: the system of record was waiting to be read back.
+
+The opus whole-branch review's verdict was the right kind of nuanced — *"Ready to merge? Yes, with the one
+comment fix; the rest are live-verification items."* Its sharpest catch: the `search_history` free-text filter
+used `query.ilike("payload", …)` on a **jsonb** column, which commonly errors on live PostgREST and was
+invisible because the route tests mock `snapshot`. The plan had pre-written the fix; I applied it
+(`query.filter("payload::text", "ilike", …)`, `bd62b7f`). It fails open regardless, so it can't break the
+voice loop — exactly the class of risk the on-device live checks exist to catch. 172 tests / tsc / build green
+on merged main; both beads `closed` + `needs-verification`. One by-design oddity recorded for the graph era:
+`prevRunId` resolves to the *oldest* same-label run after rehydration, not the most recent — the spec accepts
+it as a hint, not truth.
+
+**Content potential:** "the bake-off that overturned its own roadmap" — a stronger architecture losing to the
+same architecture trained on the right *language*, with the mechanism visible in one number (diff-cos
+0.634→0.294). And the meta-angle: running a human-driven TDD stream and a fully-autonomous research stream
+*in parallel worktrees*, and the autonomous one being the one that produced the genuine surprise.
+
+---
+
 ### 2026-06-21 — TS-VAD validated, and "only respond to me" shipped as parallel grade-and-suppress
 
 Turned the speakerphone feedback loop into a real feature. Picked up **PR #5 / TS-VAD** (`edmini-7vr`):
