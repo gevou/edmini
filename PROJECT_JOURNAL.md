@@ -20,6 +20,46 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — enrollment UX: silence during capture, a grade chip, a name, and the roster decision
+
+A run of small, user-driven polish on the speaker-identity feature, each item from the user actually
+holding the thing in their hands.
+
+**"during enrollment we should disable edmini…. I was reciting the words and edmini started answering :)"**
+The enrollment passage and the live OpenAI session shared one raw mic track, so Ed transcribed the
+Rainbow Passage and answered it. The fix is satisfying because of an architectural accident in our favor:
+the TS-VAD enrollment reads the mic through its *own* `AudioContext` (`createMediaStreamSource`),
+independent of the WebRTC sender — so `replaceTrack(null)` on the PC audio sender mutes the mic *to
+OpenAI* (no `speech_started`/`committed` → nothing to respond to) while enrollment capture keeps working.
+Narration paused too (`enrollingRef`). "Disable edmini during enrollment" turned out to be one line of
+WebRTC, not a redesign.
+
+**The grade chip and the name.** Two requests that pair naturally. First: *"I was expecting a grading
+indicator next to the timestamp but i don't see anything."* It wasn't a bug — the grade only ever went to
+the debug events panel; showing it on the message is the open `hy8`. So I threaded the speaker-ID
+confidence onto the responded turn (enrolled-only — pass-through has no real score) and render it as a
+colored dot + number next to the timestamp. Second, the user's idea: *"maybe we should also ask the user
+for their name… so edmini can attach a name to the signature."* We agreed to **type it, not speak it** —
+dodges both name mis-transcription ("George"→"Georgia") and re-opening the mic mid-enrollment (the bug we'd
+just fixed). A skippable step at the end of capture; stored on the `Enrollment`, sent to `/api/session`,
+injected into Ed's prompt ("you're speaking with George"). Small, but it's the hook the roster needs.
+
+**Then the roster decision.** *"we should allow enroll (as a manual… way to add another user) right?"* —
+yes, and it's `edmini-q1e`, just reached by manual enrollment instead of waiting on the voice-triggered
+`enroll_speaker` tool (`6kl`), which I dropped as a blocker. The load-bearing fork I put to the user: when
+a second person is enrolled, does Ed *respond* to them, or just *identify* them? He chose **identify-only**
+— Ed still acts only on the principal; others get their turns labeled by name. The reason that's the right
+call: it keeps authorization (who can command Ed) a separate, deliberate decision from identification, and
+it doesn't disturb the grade-and-suppress gate we just verified on device. The elegant consequence: the
+N-way `speaker-classifier.ts` (built back in `ce9`) *replaces* the binary grader, and "respond" becomes
+simply "classified-as-principal" — one decision point gates the response and attributes the name.
+
+**Content potential:** the enrollment-onboarding arc as a case study in letting real use drive UX — every
+one of these came from a person holding the product, not a spec. And the recurring theme of *architectural
+accidents that pay off*: the VAD's separate audio graph making "mute Ed during enrollment" trivial.
+
+---
+
 ### 2026-06-22 — live-testing the memory feature: a three-layer search bug, a phantom "bye-bye", and the model finally on Blob
 
 The day after shipping `iee`, the user actually *used* it — and synthetic tests' blind spots came out one

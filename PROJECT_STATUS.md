@@ -1,8 +1,28 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `e51ab89`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `aee4d49`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22b) — enrollment UX polish; starting the multi-speaker roster (q1e)
+On-device use of the speaker-ID feature drove a run of polish, then a roster decision.
+
+- **`d6z` pause-edmini-during-enrollment — CLOSED + needs-verification.** Reciting the passage was
+  reaching OpenAI (shared raw mic track) → Ed answered. Fix: `replaceTrack(null)` mutes the mic to OpenAI
+  during the enroll modal (TS-VAD tap is a separate AudioContext, unaffected) + `enrollingRef` pauses
+  narration. (`ff6f331`)
+- **`hy8` grade chip — DONE (bead still open for the toggle-drop half).** Per-message speaker-ID confidence
+  now shows next to the timestamp on answered turns (colored dot + number, enrolled-only). Remaining hy8:
+  drop the on/off toggle (grading ON whenever enrolled). (`aee4d49`)
+- **`1wm` name at enrollment — CLOSED + needs-verification.** Skippable "What should Ed call you?" text step;
+  stored on the Enrollment, sent to `/api/session` → Ed addresses you by name. Typed, not voiced. (`aee4d49`)
+- **`q1e` multi-speaker roster — IN PROGRESS (next).** Reframed: manual enrollment is the entry point (the
+  voice-triggered `6kl` is a later 2nd entry, dep removed). **DECISION: identify-only** — Ed still acts only
+  on the principal; other enrolled voices are attributed by name, non-enrolled = unknown/suppressed. Design:
+  roster store (N named + principal; migrate the single enrollment) → pipeline scores each window vs ALL
+  centroids (embed once, N≈free) → reuse `speaker-classifier.ts` at turn-end, respond iff classified==
+  principal. Back-compat invariant: principal-only == today's behavior. Building **thin slice first** (roster
+  + add-another-voice + name-on-turn display, gate untouched), iee-way (plan → subagent-driven + eval).
 
 ## CHECKPOINT (2026-06-22) — iee verified; speaker-ID model hosted on Vercel Blob
 Live-tested `iee` on device; it surfaced a 3-layer `search_history` bug (all fixed), then **`iee` was
