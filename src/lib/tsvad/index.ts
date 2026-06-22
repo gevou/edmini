@@ -17,6 +17,14 @@
 export * from "./types";
 export { cosineSimilarity, l2normalize } from "./cosine";
 export { createGate, type Gate } from "./gate";
+export {
+  createSpeakerClassifier,
+  DEFAULT_CLASSIFIER_POLICY,
+  type SpeakerClassifier,
+  type ClassifierPolicy,
+  type ClassifyDecision,
+  type CandidateScore,
+} from "./speaker-classifier";
 export { createEnrollmentAccumulator, type EnrollmentAccumulator } from "./enrollment";
 export { createFbankExtractor, applyCMN, DEFAULT_FBANK_CONFIG, type FbankConfig } from "./fbank";
 export { resampleLinear } from "./resample";
