@@ -17,6 +17,7 @@
 export * from "./types";
 export { cosineSimilarity, l2normalize } from "./cosine";
 export { createGate, type Gate } from "./gate";
+export { createLocalStorageRosterStore } from "./roster-store";
 export {
   createSpeakerClassifier,
   DEFAULT_CLASSIFIER_POLICY,
