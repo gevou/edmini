@@ -1,6 +1,36 @@
 import { describe, it, expect, vi } from "vitest";
-import { createLedger } from "../ledger-supabase";
+import { createLedger, tokenizeQuery, buildTextOrFilter } from "../ledger-supabase";
 import { fromRow, type LedgerRow } from "../ledger";
+
+/** A row's text-keys matched by the OR filter iff some token is a substring of some key (the live semantics). */
+function phraseMatches(query: string, storedText: string): boolean {
+  const terms = tokenizeQuery(query);
+  return terms.length > 0 && terms.some((t) => storedText.toLowerCase().includes(t));
+}
+
+describe("tokenizeQuery / buildTextOrFilter (free-text recall)", () => {
+  it("a multi-word query matches a compound stored word (the BlueFinch regression)", () => {
+    // The live bug: model searched the phrase as spoken; the marker stored one word.
+    expect(phraseMatches("code name", "remember the codename is BlueFinch")).toBe(true);
+    expect(phraseMatches("project code name", "remember the codename is BlueFinch")).toBe(true);
+    expect(phraseMatches("codename", "remember the codename is BlueFinch")).toBe(true);
+  });
+
+  it("keeps content words, dropping short words and stopwords", () => {
+    expect(tokenizeQuery("the launch plan")).toEqual(["launch", "plan"]); // "the" dropped (len 3)
+    expect(tokenizeQuery("what was the codename")).toEqual(["codename"]); // what/the stop/short
+  });
+
+  it("falls back to the whole phrase when no content words survive", () => {
+    expect(tokenizeQuery("hi")).toEqual(["hi"]);
+  });
+
+  it("builds an OR filter across every text key for each token, or null when empty", () => {
+    const f = buildTextOrFilter("codename", ["text", "summary"]);
+    expect(f).toBe("payload->>text.ilike.%codename%,payload->>summary.ilike.%codename%");
+    expect(buildTextOrFilter("  ", ["text"])).toBeNull();
+  });
+});
 
 const sampleRow: LedgerRow = {
   id: "id1",

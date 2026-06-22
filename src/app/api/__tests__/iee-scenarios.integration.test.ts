@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { LedgerEvent } from "@/lib/ledger";
-import type { Ledger } from "@/lib/ledger-supabase";
+import { type Ledger, tokenizeQuery, TEXT_KEYS } from "@/lib/ledger-supabase";
 import { buildRegistryFromEvents } from "@/lib/voice/run-registry";
 import { selectCatchUp } from "@/lib/ledger";
 
@@ -56,16 +56,15 @@ function makeMemoryLedger(): Ledger {
       if (!row.threadId || !opts.threadIds.includes(row.threadId)) return false;
     }
     if (opts.text !== undefined) {
-      // Mirror the real binding: ILIKE only the text-bearing payload keys (jsonb has no ILIKE), with
-      // the same metachar sanitization. NOT a whole-payload stringify match — that was more permissive
-      // than PostgREST and let a real prod failure pass green.
-      const needle = opts.text.replace(/[,()]/g, " ").trim().toLowerCase();
-      const hay = ["text", "summary", "question", "error", "instruction", "label"]
-        .map((k) => row.payload?.[k])
+      // Mirror the real binding EXACTLY: same tokenizer (tokenizeQuery), OR semantics, same key set.
+      // A row matches if ANY query token is a substring of any text-bearing key. (A whole-payload
+      // stringify match was more permissive than PostgREST and let a real prod failure pass green.)
+      const terms = tokenizeQuery(opts.text);
+      const hay = TEXT_KEYS.map((k) => row.payload?.[k])
         .filter((v): v is string => typeof v === "string")
         .join(" ")
         .toLowerCase();
-      if (needle && !hay.includes(needle)) return false;
+      if (terms.length && !terms.some((t) => hay.includes(t))) return false;
     }
     return true;
   }
@@ -103,8 +102,10 @@ const { ledgerHolder } = vi.hoisted(() => {
   return { ledgerHolder: { current: makeMemoryLedger() } };
 });
 
-// All three routes import ledgerFromEnv. Intercept so they all share one instance.
-vi.mock("@/lib/ledger-supabase", () => ({
+// All three routes import ledgerFromEnv. Intercept so they all share one instance, but keep the real
+// pure helpers (tokenizeQuery, TEXT_KEYS) the mock ledger uses — spread the actual module.
+vi.mock("@/lib/ledger-supabase", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ledger-supabase")>()),
   ledgerFromEnv: () => ledgerHolder.current,
 }));
 

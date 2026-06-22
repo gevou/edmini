@@ -6,6 +6,36 @@
 import { createClient, type SupabaseClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { fromRow, toInsert, type LedgerEvent, type LedgerRow, type LedgerSource } from "./ledger";
 
+/** Payload keys that carry user-visible text (jsonb has no ILIKE, so we search these extracted keys). */
+export const TEXT_KEYS = ["text", "summary", "question", "error", "instruction", "label"] as const;
+
+const TEXT_STOPWORDS = new Set([
+  "what", "when", "where", "which", "that", "this", "with", "from", "about", "there",
+  "they", "them", "were", "will", "would", "could", "should", "have", "your", "into",
+  "earlier", "mentioned", "remember", "again", "recently", "just",
+]);
+
+/**
+ * Build a PostgREST `or()` filter string for free-text recall over jsonb payload text (edmini-iee).
+ * Tokenizes the query into content words (≥4 chars, minus stopwords) and ORs each as an ILIKE substring
+ * across TEXT_KEYS — so a multi-word query ("code name") matches a compound stored word ("codename"),
+ * which a whole-phrase substring (and even Postgres FTS) would miss. Metachars `,()` are stripped (they
+ * break the or()-grammar). Returns null when there's nothing searchable. Falls back to the whole phrase
+ * when no content words survive (e.g. a short query like "hi").
+ */
+export function tokenizeQuery(text: string): string[] {
+  const cleaned = text.replace(/[,()]/g, " ").trim();
+  if (!cleaned) return [];
+  const words = cleaned.toLowerCase().split(/\s+/).filter((w) => w.length >= 4 && !TEXT_STOPWORDS.has(w));
+  return words.length ? words : [cleaned.toLowerCase()]; // fall back to the whole phrase for short queries
+}
+
+export function buildTextOrFilter(text: string, keys: readonly string[] = TEXT_KEYS): string | null {
+  const terms = tokenizeQuery(text);
+  if (!terms.length) return null;
+  return terms.flatMap((w) => keys.map((k) => `payload->>${k}.ilike.%${w}%`)).join(",");
+}
+
 export interface Ledger {
   /** Append one event (DB assigns id/seq/ts). Returns the stored event. */
   append(event: LedgerEvent): Promise<LedgerEvent>;
@@ -46,15 +76,12 @@ export function createLedger(client: SupabaseClient): Ledger {
       if (opts.source) query = query.eq("source", opts.source);
       if (opts.author) query = query.eq("payload->>author", opts.author);
       if (opts.threadIds && opts.threadIds.length) query = query.in("thread_id", opts.threadIds);
-      // Free-text over `payload` (jsonb). Postgres has no ILIKE for jsonb (42883), and PostgREST can't
-      // cast the column in a filter (a `payload::text` filter is NOT applied), so we ILIKE the extracted
-      // text-bearing keys, OR'd together. Sanitize the needle of PostgREST or()-grammar metachars (`,()`).
+      // Free-text recall over `payload` (jsonb). jsonb has no ILIKE (42883) and PostgREST can't cast in a
+      // filter, so we tokenize and ILIKE the extracted text keys, OR'd (see buildTextOrFilter — a word
+      // query must match a compound stored word, e.g. "code name" → "codename").
       if (opts.text) {
-        const needle = opts.text.replace(/[,()]/g, " ").trim();
-        if (needle) {
-          const keys = ["text", "summary", "question", "error", "instruction", "label"];
-          query = query.or(keys.map((k) => `payload->>${k}.ilike.%${needle}%`).join(","));
-        }
+        const orFilter = buildTextOrFilter(opts.text);
+        if (orFilter) query = query.or(orFilter);
       }
       if (opts.limit != null) query = query.limit(opts.limit);
       const { data, error } = await query;
