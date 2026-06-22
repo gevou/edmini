@@ -10,7 +10,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   let grading = false;
-  try { grading = Boolean(((await request.clone().json()) as { grading?: boolean }).grading); } catch { /* no body */ }
+  let userName: string | undefined;
+  try {
+    const b = (await request.clone().json()) as { grading?: boolean; userName?: string };
+    grading = Boolean(b.grading);
+    if (typeof b.userName === "string" && b.userName.trim()) userName = b.userName.trim().slice(0, 40);
+  } catch { /* no body */ }
 
   const apiKey = request.headers.get("x-openai-key") ?? process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -90,7 +95,10 @@ Each run works in the background. Its updates are relayed to you as system notif
 - If a run comes back blocked with a question and the User answers it, call \`answer_run\` with that run's \`label\` and the User's answer so the run can continue.
 - If the User revokes a task ("stop", "cancel", "never mind", "drop the export one"), call \`cancel_run\` with that run's \`label\`. Infer which label the User means from context.`;
 
-  const instructionsWithHistory = instructions + historyBlock;
+  const userLine = userName
+    ? `\n\nYou are speaking with **${userName}** (their enrolled voice). Address them by name naturally when it fits — don't overuse it.`
+    : "";
+  const instructionsWithHistory = instructions + userLine + historyBlock;
 
   // Tool definitions sent to the Realtime session. The voice model decides when
   // to call these. They map to the three outbound bus actions; the client POSTs

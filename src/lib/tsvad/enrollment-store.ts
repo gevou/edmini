@@ -13,6 +13,7 @@ interface Serialized {
   windowCount: number;
   dim: number;
   enrolledAt: number;
+  name?: string;
 }
 
 export function createLocalStorageEnrollmentStore(storageKey = KEY): EnrollmentStore {
@@ -28,6 +29,7 @@ export function createLocalStorageEnrollmentStore(storageKey = KEY): EnrollmentS
           windowCount: s.windowCount,
           dim: s.dim,
           enrolledAt: s.enrolledAt,
+          name: s.name,
         };
       } catch {
         return null;
@@ -39,6 +41,7 @@ export function createLocalStorageEnrollmentStore(storageKey = KEY): EnrollmentS
         windowCount: e.windowCount,
         dim: e.dim,
         enrolledAt: e.enrolledAt,
+        name: e.name,
       };
       localStorage.setItem(storageKey, JSON.stringify(s));
     },

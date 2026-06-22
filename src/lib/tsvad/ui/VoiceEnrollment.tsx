@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Enrollment } from "../types";
 import type { EnrollProgress, ScoreEvent, TargetSpeakerVad } from "../pipeline";
 
-type Step = "intro" | "recording" | "verify" | "error";
+type Step = "intro" | "recording" | "verify" | "name" | "error";
 
 /** ~11s of neutral, phonetically varied speech (the standard "Rainbow Passage" opening). The words
  *  don't matter to the model — this just gives the user something to say so they don't freeze. */
@@ -50,6 +50,7 @@ export function VoiceEnrollment({
   const [progress, setProgress] = useState<EnrollProgress | null>(null);
   const [selfTest, setSelfTest] = useState<ScoreEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [name, setName] = useState("");
 
   const enrollmentRef = useRef<Enrollment | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -81,10 +82,18 @@ export function VoiceEnrollment({
       });
   }, [vad, windows, minLevel, startSelfTest]);
 
+  // After the self-test, move to the (skippable) name step rather than completing immediately.
   const confirm = useCallback(() => {
     cleanupSelfTest();
-    if (enrollmentRef.current) onComplete(enrollmentRef.current);
-  }, [cleanupSelfTest, onComplete]);
+    setStep("name");
+  }, [cleanupSelfTest]);
+
+  // Finish enrollment, optionally attaching the typed name so edmini can address the user.
+  const finish = useCallback((useName: boolean) => {
+    if (!enrollmentRef.current) return;
+    const trimmed = name.trim();
+    onComplete({ ...enrollmentRef.current, name: useName && trimmed ? trimmed : undefined });
+  }, [name, onComplete]);
 
   const redo = useCallback(() => {
     cleanupSelfTest();
@@ -143,6 +152,29 @@ export function VoiceEnrollment({
           <div style={row}>
             <button style={btn("#16a34a")} onClick={confirm}>Looks good</button>
             <button style={btn("#7c2d12")} onClick={redo}>Redo</button>
+          </div>
+        </>
+      )}
+
+      {step === "name" && (
+        <>
+          <p style={hint}>One last thing — what should Ed call you? (optional)</p>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") finish(true); }}
+            placeholder="Your name"
+            maxLength={40}
+            style={{
+              width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "10px 12px",
+              borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(0,0,0,0.3)",
+              color: "white", fontSize: 14, outline: "none",
+            }}
+          />
+          <div style={row}>
+            <button style={btn("#16a34a")} onClick={() => finish(true)} disabled={!name.trim()}>Save</button>
+            <button style={btn("#374151")} onClick={() => finish(false)}>Skip</button>
           </div>
         </>
       )}

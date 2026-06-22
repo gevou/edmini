@@ -40,6 +40,8 @@ export interface Enrollment {
   dim: number;
   /** Epoch ms when enrolled, for "re-enroll" prompts. */
   enrolledAt: number;
+  /** Optional human name the user typed at enrollment, so edmini can address them (and label the signature). */
+  name?: string;
 }
 
 /**

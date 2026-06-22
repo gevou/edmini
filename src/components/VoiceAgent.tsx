@@ -15,7 +15,7 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
-import { createBrowserTargetSpeakerVad, TSVAD_MODEL_URL, type TargetSpeakerVad } from "@/lib/tsvad";
+import { createBrowserTargetSpeakerVad, createLocalStorageEnrollmentStore, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
@@ -39,6 +39,7 @@ interface Turn {
   edStreaming: boolean;
   spokenIndex?: number; // conservative spoken-so-far cursor while Ed narrates this turn (mb0)
   ts: number; // ms epoch when this turn was created (for the UI timestamp)
+  grade?: number; // speaker-ID confidence on a RESPONDED turn when enrolled (hy8); undefined = no chip
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -51,6 +52,13 @@ const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/** Speaker-ID confidence → chip color: green (clearly you), amber (borderline), red (low). */
+function gradeColor(g: number): string {
+  if (g >= 0.55) return "#4ade80";
+  if (g >= 0.4) return "#fbbf24";
+  return "#f87171";
 }
 
 function MicIcon() {
@@ -201,6 +209,9 @@ export default function VoiceAgent() {
   if (!graderRef.current) graderRef.current = createUtteranceGrader();
   const gradingEnabledRef = useRef(false);
   const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
+  // Grade to attach to the next RESPONDED user turn (hy8). Set on a respond decision when enrolled,
+  // consumed when that turn's transcript backfills. Null = no chip (grading off / not enrolled).
+  const lastRespondGradeRef = useRef<number | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   const lastProcessedSeqRef = useRef<number>(0);
@@ -595,6 +606,8 @@ export default function VoiceAgent() {
       const { decision, confidence } = graderRef.current!.end();
       if (decision === "respond") {
         pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
+        // Show the confidence on this responded turn only when enrolled (a real score, not pass-through).
+        lastRespondGradeRef.current = vadRef.current?.isEnrolled() ? confidence : null;
         fireResponse(() => {}, { metadata: { src: "client" } });
       } else {
         pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
@@ -602,6 +615,7 @@ export default function VoiceAgent() {
         // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
         if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
         suppressedTurnRef.current = { itemId: itemId ?? "", confidence };
+        lastRespondGradeRef.current = null;
       }
       return;
     }
@@ -742,19 +756,21 @@ export default function VoiceAgent() {
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
+        const grade = lastRespondGradeRef.current ?? undefined; // speaker-ID confidence for this answered turn
+        lastRespondGradeRef.current = null;
         logUserUtterance(text);
         pushEvent({ kind: "user_spoke", label: "User transcript", detail: text });
         setTurns((prev) => {
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].userText === null) {
               return prev.map((t, idx) =>
-                idx === i ? { ...t, userText: text } : t
+                idx === i ? { ...t, userText: text, grade } : t
               );
             }
           }
           // No unmatched turn — create standalone user turn
           const newId = ++turnCounterRef.current;
-          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now() }];
+          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now(), grade }];
         });
         const edText = pendingEdTextRef.current;
         if (edText) {
@@ -789,9 +805,13 @@ export default function VoiceAgent() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
+      // The enrolled name (if any) → so Ed's system prompt can address the user by name (hy8).
+      let enrolledName: string | undefined;
+      try { enrolledName = createLocalStorageEnrollmentStore().load()?.name; } catch { /* ignore */ }
+
       const sessionRes = await fetch("/api/session", {
         method: "POST", headers,
-        body: JSON.stringify({ grading: gradingEnabledRef.current }),
+        body: JSON.stringify({ grading: gradingEnabledRef.current, userName: enrolledName }),
       });
       if (!sessionRes.ok) {
         const err = await sessionRes.json();
@@ -824,7 +844,7 @@ export default function VoiceAgent() {
           await vad.start(stream);                       // taps the mic; does NOT consume it
           vad.onScore((e) => graderRef.current!.addScore(e.raw, e.level));
           vadRef.current = vad;
-          pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? "enrolled" : "pass-through (enroll to gate)" });
+          pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? (enrolledName ? `enrolled as ${enrolledName}` : "enrolled") : "pass-through (enroll to gate)" });
         } catch (err) {
           vadRef.current = null;                          // fail open — no scores → grader always responds
           pushEvent({ kind: "error", label: "Speaker grading unavailable (responding to all)", detail: err instanceof Error ? err.message : String(err) });
@@ -1003,7 +1023,13 @@ export default function VoiceAgent() {
       <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.6)", zIndex: 50, padding: 16 }}>
         <VoiceEnrollment
           vad={vadRef.current}
-          onComplete={() => { setEnrolling(false); setShowEnroll(false); pushEvent({ kind: "info", label: "Voice enrolled — grading now gates to you" }); }}
+          onComplete={(e: Enrollment) => {
+            setEnrolling(false);
+            setShowEnroll(false);
+            try { createLocalStorageEnrollmentStore().save(e); } catch { /* ignore */ }
+            vadRef.current?.setEnrollment(e);
+            pushEvent({ kind: "info", label: e.name ? `Voice enrolled — Ed will call you ${e.name}` : "Voice enrolled — grading now gates to you" });
+          }}
           onCancel={() => { setEnrolling(false); setShowEnroll(false); }}
         />
       </div>
@@ -1104,7 +1130,19 @@ export default function VoiceAgent() {
                   >
                     {turn.userText ?? "…"}
                   </div>
-                  <span className="text-[10px] text-white/20 mt-1 mr-1 tabular-nums">{fmtTime(turn.ts)}</span>
+                  <div className="flex items-center gap-1.5 mt-1 mr-1">
+                    {turn.grade !== undefined && (
+                      <span
+                        className="text-[10px] tabular-nums flex items-center gap-1"
+                        style={{ color: gradeColor(turn.grade) }}
+                        title={`Speaker-ID confidence ${turn.grade.toFixed(2)} (it's you)`}
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: 9999, background: gradeColor(turn.grade), display: "inline-block" }} />
+                        {turn.grade.toFixed(2)}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-white/20 tabular-nums">{fmtTime(turn.ts)}</span>
+                  </div>
                 </div>
               )}
               {/* Ed bubble — always second */}
