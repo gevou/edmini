@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSystemPromptContext } from "@/lib/topic-manager";
+import { ledgerFromEnv } from "@/lib/ledger-supabase";
+import { recentConversation, labelsByRun, projectRuns } from "@/lib/ledger";
 
 export async function GET() {
   const hasKey = Boolean(process.env.OPENAI_API_KEY);
@@ -16,6 +18,33 @@ export async function POST(request: Request) {
   }
 
   const topicContext = getSystemPromptContext();
+
+  let historyBlock = "";
+  try {
+    const events = await ledgerFromEnv({ serviceRole: true }).snapshot({ limit: 200 });
+    const convo = recentConversation(events, 12)
+      .map((e) => {
+        const who = e.source === "user" ? "User" : "Ed";
+        const text = typeof e.payload.text === "string" ? e.payload.text : "";
+        return text ? `- ${who}: ${text}` : "";
+      })
+      .filter(Boolean);
+    const labels = labelsByRun(events);
+    const runs = projectRuns(events)
+      .slice(-8)
+      .map((r) => {
+        const status =
+          r.lastRunKind === "run_failed" ? "failed"
+            : r.lastRunKind === "run_done" ? "done"
+              : r.lastRunKind === "run_blocked" ? "blocked" : "active";
+        return `- '${labels.get(r.runId) ?? r.runId}' — ${status}`;
+      });
+    if (convo.length || runs.length) {
+      historyBlock = `\n\n## Recent history\n(From the ledger — your memory of recent turns and runs. Reference it; if the User points at something older, call search_history.)\n${
+        convo.length ? `\nRecent conversation:\n${convo.join("\n")}` : ""
+      }${runs.length ? `\n\nRecent runs:\n${runs.join("\n")}` : ""}`;
+    }
+  } catch { /* fail open — no history block */ }
 
   const instructions = `You are Ed, a voice-first agent coordinator. You delegate the User's tasks to an autonomous agent harness (the executor that actually does the work — research, lookups, messages, scheduling, ops) and keep the User informed as the harness works. You coordinate; you do NOT do the work yourself.
 
@@ -60,6 +89,8 @@ Each run works in the background. Its updates are relayed to you as system notif
 
 - If a run comes back blocked with a question and the User answers it, call \`answer_run\` with that run's \`label\` and the User's answer so the run can continue.
 - If the User revokes a task ("stop", "cancel", "never mind", "drop the export one"), call \`cancel_run\` with that run's \`label\`. Infer which label the User means from context.`;
+
+  const instructionsWithHistory = instructions + historyBlock;
 
   // Tool definitions sent to the Realtime session. The voice model decides when
   // to call these. They map to the three outbound bus actions; the client POSTs
@@ -129,6 +160,23 @@ Each run works in the background. Its updates are relayed to you as system notif
         required: ["label"],
       },
     },
+    {
+      type: "function",
+      name: "search_history",
+      description:
+        "Search the conversation/run ledger for older context when the User refers to something not in your Recent history, or to follow a run's provenance. Returns raw events; read them and answer faithfully. Each result may carry prevRunId — re-call with that runId to walk a run's lineage one hop at a time.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Free-text to match in event payloads." },
+          runId: { type: "string", description: "Restrict to one run (opaque id from a prior result)." },
+          since: { type: "string", description: "ISO timestamp lower bound." },
+          until: { type: "string", description: "ISO timestamp upper bound." },
+          source: { type: "string", enum: ["user", "edmini", "harness"], description: "Who emitted the event." },
+          limit: { type: "number", description: "Max events to return (default 30, max 100)." },
+        },
+      },
+    },
   ];
 
   const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -142,7 +190,7 @@ Each run works in the background. Its updates are relayed to you as system notif
       session: {
         type: "realtime",
         model: "gpt-realtime",
-        instructions,
+        instructions: instructionsWithHistory,
         output_modalities: ["audio"],
         audio: {
           input: {

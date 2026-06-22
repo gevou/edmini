@@ -4,13 +4,22 @@
  * See docs/architecture/edmini-v1-design.md §5 and infra/supabase/migrations/0001_ledger.sql.
  */
 import { createClient, type SupabaseClient, type RealtimeChannel } from "@supabase/supabase-js";
-import { fromRow, toInsert, type LedgerEvent, type LedgerRow } from "./ledger";
+import { fromRow, toInsert, type LedgerEvent, type LedgerRow, type LedgerSource } from "./ledger";
 
 export interface Ledger {
   /** Append one event (DB assigns id/seq/ts). Returns the stored event. */
   append(event: LedgerEvent): Promise<LedgerEvent>;
   /** Read events ordered by seq; optionally scoped to a run or limited. */
-  snapshot(opts?: { runId?: string; limit?: number }): Promise<LedgerEvent[]>;
+  snapshot(opts?: {
+    runId?: string;
+    limit?: number;
+    since?: string;
+    until?: string;
+    text?: string;
+    source?: LedgerSource;
+    author?: string;
+    threadIds?: string[];
+  }): Promise<LedgerEvent[]>;
   /** Subscribe to new events via Supabase Realtime. Returns the channel (call .unsubscribe()). */
   subscribe(onEvent: (event: LedgerEvent) => void): RealtimeChannel;
 }
@@ -28,6 +37,15 @@ export function createLedger(client: SupabaseClient): Ledger {
     async snapshot(opts = {}) {
       let query = client.from(TABLE).select("*").order("seq", { ascending: true });
       if (opts.runId) query = query.eq("run_id", opts.runId);
+      if (opts.since) query = query.gte("ts", opts.since);
+      if (opts.until) query = query.lte("ts", opts.until);
+      if (opts.source) query = query.eq("source", opts.source);
+      if (opts.author) query = query.eq("payload->>author", opts.author);
+      if (opts.threadIds && opts.threadIds.length) query = query.in("thread_id", opts.threadIds);
+      // `payload` is jsonb; ILIKE needs a text operand, so cast the column (`payload::text`). A bare
+      // .ilike("payload", …) errors on jsonb in PostgREST. The route catches snapshot errors (fail-open),
+      // but the cast makes the free-text filter actually work. Verify live (edmini-iee check (a)).
+      if (opts.text) query = query.filter("payload::text", "ilike", `%${opts.text}%`);
       if (opts.limit != null) query = query.limit(opts.limit);
       const { data, error } = await query;
       if (error) throw new Error(`ledger.snapshot failed: ${error.message}`);

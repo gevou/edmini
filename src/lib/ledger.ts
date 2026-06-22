@@ -105,3 +105,42 @@ export function projectRuns(events: LedgerEvent[]): RunState[] {
   }
   return out;
 }
+
+const CONVERSATION_KINDS: ReadonlySet<string> = new Set(["user_utterance", "voice_output"]);
+const CATCHUP_KINDS: ReadonlySet<string> = new Set(["run_done", "run_blocked", "run_failed", "run_output"]);
+
+/** runId → label from task_dispatch payloads (last write wins by seq). Pure. */
+export function labelsByRun(events: LedgerEvent[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const e of [...events].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))) {
+    if (e.kind !== "task_dispatch" || !e.runId) continue;
+    if (typeof e.payload.label === "string" && e.payload.label) out.set(e.runId, e.payload.label);
+  }
+  return out;
+}
+
+/** The last n conversation events (user_utterance + voice_output) by seq, oldest-first. Pure. */
+export function recentConversation(events: LedgerEvent[], n: number): LedgerEvent[] {
+  const conv = events
+    .filter((e) => CONVERSATION_KINDS.has(e.kind))
+    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  return n >= conv.length ? conv : conv.slice(conv.length - n);
+}
+
+/** Narratable harness events past lastSeenSeq for known runs, oldest-first (edmini-iee §2). Pure. */
+export function selectCatchUp(
+  events: LedgerEvent[],
+  lastSeenSeq: number,
+  knownRunIds: Set<string>,
+): LedgerEvent[] {
+  return events
+    .filter(
+      (e) =>
+        (e.seq ?? 0) > lastSeenSeq &&
+        CATCHUP_KINDS.has(e.kind) &&
+        e.source === "harness" &&
+        e.runId != null &&
+        knownRunIds.has(e.runId),
+    )
+    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+}
