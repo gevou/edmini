@@ -363,10 +363,12 @@ export default function VoiceAgent() {
             label: `Tool call: delegate_task (${requestedLabel || "—"})`,
             detail: instruction || "(no instruction)",
           });
+          const prevRunId = registry.resolveLabel(requestedLabel); // raw provenance fact (null if first use)
           const { ok, data } = await callBus({
             action: "dispatch",
             instruction,
             label: requestedLabel,
+            prevRunId,
           });
           if (ok && typeof data.runId === "string") {
             // Register → canonical label (collision-suffixed); hand it back so the model re-syncs.
@@ -412,6 +414,16 @@ export default function VoiceAgent() {
           }
           const { data } = await callBus({ action: "cancel", runId, reason });
           registry.remove(runId);
+          sendToolResult(callId, JSON.stringify(data));
+          return;
+        }
+
+        if (name === "search_history") {
+          pushEvent({ kind: "info", label: "Tool call: search_history", detail: JSON.stringify(args).slice(0, 120) });
+          const res = await fetch("/api/history", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(args),
+          });
+          const data = (res.ok ? await res.json() : { error: await res.text() }) as Record<string, unknown>;
           sendToolResult(callId, JSON.stringify(data));
           return;
         }
@@ -528,6 +540,15 @@ export default function VoiceAgent() {
     void fetch("/api/heard", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, confidence, threadId: voiceThreadIdRef.current }),
+    }).catch(() => {});
+  }, []);
+
+  // Log a finalized User turn (User → edmini crossing) to the ledger (edmini-iee §4). Fire-and-forget.
+  const logUserUtterance = useCallback((text: string) => {
+    if (!text.trim()) return;
+    void fetch("/api/conversation/utterance", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, threadId: voiceThreadIdRef.current }),
     }).catch(() => {});
   }, []);
 
@@ -713,6 +734,7 @@ export default function VoiceAgent() {
       const transcript = serverEvent.transcript as string;
       if (transcript?.trim()) {
         const text = transcript.trim();
+        logUserUtterance(text);
         pushEvent({ kind: "user_spoke", label: "User transcript", detail: text });
         setTurns((prev) => {
           for (let i = prev.length - 1; i >= 0; i--) {
@@ -736,7 +758,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker, recordHeard, fireResponse]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker, recordHeard, logUserUtterance, fireResponse]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
