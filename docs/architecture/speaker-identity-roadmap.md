@@ -64,6 +64,17 @@ reports EER + same/diff-speaker margin. The repo's example WAVs are *Chinese*, s
 English. Plan: record ~3 short clips each of 2 **English** speakers (16 kHz mono, `speakerId_utt.wav`),
 then run CAM++ zh-cn vs CAM++ zh_en vs ERES2Net and pick by the numbers. → bead **`edmini-ce9`**.
 
+> **RESOLVED (2026-06-21) — full results & numbers: [`tsvad-bakeoff-results.md`](./tsvad-bakeoff-results.md).**
+> **Winner: CAM++ `zh_en` bilingual.** It more than doubles the English separation margin
+> (**0.538 vs 0.224** baseline) by collapsing the diff-speaker cosine (0.634 → 0.294), at identical
+> latency (54 ms). Confirms the hypothesis: for English, **bilingual training data is the lever, not a
+> bigger architecture** — ERES2Net/V2 (zh-cn only, 4–12× slower) did *not* improve English separation.
+> → recommend hosting `campplus_zh_en.onnx` for **`edmini-5on`** (28 MB, drop-in: same 192-dim, same I/O
+> names `x`→`embedding`, same fbank). Margin logic (item 3) is **shipped**: pure
+> `src/lib/tsvad/speaker-classifier.ts` (top1 ≥ absThreshold AND top1−top2 ≥ marginThreshold else
+> "unknown"; single-target back-compat; ready for the N-way `edmini-q1e`). Caveat: 2 speakers × 3 clips —
+> directional, re-tune thresholds on device.
+
 ## Enroll other speakers from audio edmini already hears
 
 Principal authorizes who's retained (the consent gesture, per conversational-presence §8). Two flavors,
