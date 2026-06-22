@@ -5,8 +5,9 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import EventLogPanel from "@/components/EventLogPanel";
 import { pushEvent } from "@/lib/event-log-store";
 import type { LedgerEvent } from "@/lib/ledger";
+import { selectCatchUp } from "@/lib/ledger";
 import { ledgerFromEnv } from "@/lib/ledger-supabase";
-import { createRunRegistry, type RunRegistry } from "@/lib/voice/run-registry";
+import { createRunRegistry, buildRegistryFromEvents, type RunRegistry } from "@/lib/voice/run-registry";
 import {
   createNarrationQueue,
   type NarrationBatch,
@@ -44,6 +45,7 @@ type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
 const GRADING_KEY = "ed_grading_enabled";
+const LAST_SEEN_SEQ_KEY = "edmini.lastSeenSeq";
 // Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
 
@@ -194,6 +196,7 @@ export default function VoiceAgent() {
   const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
+  const lastProcessedSeqRef = useRef<number>(0);
   // N concurrent runs (9ex): the registry maps label↔runId; the queue serialises narration onto the
   // single voice output channel under the priority policy. userSpeaking/responseActive gate draining
   // so we never interrupt the User and never fire response.create while a response is in flight.
@@ -304,6 +307,8 @@ export default function VoiceAgent() {
   const handleLedgerEvent = useCallback(
     (event: LedgerEvent) => {
       if (event.source !== "harness" || !event.runId) return;
+      if ((event.seq ?? 0) <= lastProcessedSeqRef.current) return; // snapshot↔subscribe idempotency
+      lastProcessedSeqRef.current = Math.max(lastProcessedSeqRef.current, event.seq ?? 0);
       const registry = runRegistryRef.current!;
       const label = registry.labelFor(event.runId);
       if (!label) return; // not a run we dispatched this session
@@ -801,6 +806,43 @@ export default function VoiceAgent() {
       dcRef.current = dc;
       dc.onmessage = handleDataChannelMessage;
 
+      // Rehydrate the registry + compute catch-up from a ledger snapshot (edmini-iee §1/§2). Fail open.
+      let catchUpBatch: NarrationBatch = [];
+      try {
+        const ledger = ledgerFromEnv();
+        const snap = await ledger.snapshot();
+        const rebuilt = buildRegistryFromEvents(snap);
+        runRegistryRef.current = rebuilt;
+        const maxSeq = snap.reduce((m, e) => Math.max(m, e.seq ?? 0), 0);
+        const lastSeen = Number(localStorage.getItem(LAST_SEEN_SEQ_KEY) ?? "0");
+        lastProcessedSeqRef.current = maxSeq;
+        if (lastSeen > 0) {
+          const known = new Set(snap.filter((e) => e.kind === "task_dispatch" && e.runId).map((e) => e.runId as string));
+          catchUpBatch = selectCatchUp(snap, lastSeen, known).map((e) => ({
+            priority: NARRATE[e.kind]?.priority ?? "low",
+            kind: e.kind,
+            label: rebuilt.labelFor(e.runId as string) ?? undefined,
+            text: NARRATE[e.kind]?.render(e.payload) ?? e.kind,
+          }));
+        }
+      } catch (err) {
+        pushEvent({ kind: "error", label: "Rehydrate failed (starting fresh)", detail: err instanceof Error ? err.message : String(err) });
+      }
+
+      dc.onopen = () => {
+        if (catchUpBatch.length) {
+          edInitiatedPendingRef.current = true;
+          const lines = catchUpBatch.map((i) => (i.label ? `Run '${i.label}' ${i.text}` : i.text)).join(". ");
+          fireResponse(() =>
+            dcRef.current?.send(JSON.stringify({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text",
+                text: `(While you were away, these updates arrived — relay them to the User briefly as a catch-up, in your own words; name each task; relay ONLY what they say, do not claim completion unless tagged finished.) ${lines}` }] },
+            })),
+          );
+        }
+      };
+
       // Subscribe the browser to the ledger so inbound harness events for the
       // active run get narrated into the live session (the Narrate half).
       try {
@@ -834,7 +876,7 @@ export default function VoiceAgent() {
       setStatus("error");
       stopSession();
     }
-  }, [handleDataChannelMessage, handleLedgerEvent, apiKey, recordVoiceThread]);
+  }, [handleDataChannelMessage, handleLedgerEvent, fireResponse, apiKey, recordVoiceThread]);
 
   const stopSession = useCallback(() => {
     const activeId = currentTurnIdRef.current;
@@ -852,6 +894,8 @@ export default function VoiceAgent() {
     suppressedTurnRef.current = null;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
+    try { localStorage.setItem(LAST_SEEN_SEQ_KEY, String(lastProcessedSeqRef.current)); } catch { /* ignore */ }
+    lastProcessedSeqRef.current = 0;
     runRegistryRef.current = createRunRegistry();
     narrationQueueRef.current = createNarrationQueue();
     pendingToolResponsesRef.current = [];
