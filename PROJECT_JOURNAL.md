@@ -40,6 +40,12 @@ English speakers × 3 clips each (16 kHz mono, converted from the user's phone r
 | ERES2Net (zh-cn) | 0.888 | 0.682 | 0.205 | 646 ms |
 | ERES2NetV2 (zh-cn) | 0.883 | 0.637 | 0.246 | 209 ms |
 
+*(Canonical experiment record — full method, per-clip durations, I/O contract, EER, caveats, and a
+`pnpm tsvad:validate` reproduce block — lives in
+[`docs/architecture/tsvad-bakeoff-results.md`](docs/architecture/tsvad-bakeoff-results.md). That's the
+**extensible** log: future bake-offs (more speakers, new models, on-device threshold re-tunes) append
+there; this entry is the narrative snapshot.)*
+
 CAM++ zh_en **more than doubled the English separation margin** — and it did it by *collapsing the
 different-speaker cosine* (0.634 → 0.294), i.e. pushing *different* English voices apart, exactly the failure
 mode of a Mandarin-trained model on English. ERES2Net (the stronger arch) was actually *worse* on English
