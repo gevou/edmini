@@ -20,6 +20,74 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — live-testing the memory feature: a three-layer search bug, a phantom "bye-bye", and the model finally on Blob
+
+The day after shipping `iee`, the user actually *used* it — and synthetic tests' blind spots came out one
+by one. The arc: I'd claim a fix "verified," they'd come back with two words — *"failed again"* — and the
+next layer would surface. It took three to reach the bottom, and the recurring lesson was mine: I kept
+verifying the *mechanism* instead of the *real input*.
+
+**The search_history cascade.** `search_history` (Ed's "go look deeper in history" tool) failed live.
+- **Layer 1:** Ed said *"having trouble searching the history."* I pulled the Vercel logs: Postgres `42883`,
+  *"operator does not exist: jsonb ~~* unknown."* There is no `ILIKE` for `jsonb` — and the `payload::text`
+  cast I'd added in the first pass (and proudly "verified live") **was inert**: PostgREST doesn't apply a
+  cast inside a filter. Fix: ILIKE the extracted text keys (`payload->>text` etc.), OR'd.
+- **Layer 2:** *"failed again."* Now the route returned 200 but Ed *"couldn't find the codename."* The
+  diagnostic I'd added — a one-line `[history] params=… returned=…` log — earned its keep: the model had
+  searched, gotten results, but not BlueFinch. Root cause: `snapshot` ordered `seq ASC` then `.limit()`, so
+  it returned the **oldest** N. BlueFinch sat mid-ledger. Every consumer wanted recent context — and the
+  same bug silently truncated `/api/session`'s "Recent history" to the oldest 200 once the ledger passed
+  200 events. Fix: most-recent-N (desc + limit + reverse).
+- **Layer 3:** *"failed again."* The `[history]` log showed the model searched the phrase **as spoken** —
+  `"code name"`, `"project code name"` — but the marker was stored as one word, `"codename"`. Whole-phrase
+  substring can't bridge that (nor could Postgres FTS — "codename" is one lexeme). Fix: tokenize the query
+  into content words and OR them — `"code name"` → `code` OR `name`, both substrings of `codename`. This
+  time I verified the **actual failing inputs** against live Supabase before claiming it: all three
+  phrasings return BlueFinch. Then *"it worked."* The logs showed the final `POST /api/history → 200` with
+  the `"project…"` query.
+
+A quiet accomplice ran through all three: the `nvb` eval mock's text filter did a whole-payload
+`JSON.stringify().includes()` — **more permissive than PostgREST** — so the suite stayed green while prod
+broke. I tightened the mock to share the real tokenizer. The deeper note for myself, written into the
+`iee` close reason: *verify the real input, not a query that happens to work.*
+
+**The phantom "bye-bye".** Mixed into the test logs was a "duplicate" narration — Ed re-stated a finished
+run after a user turn that said *"Bye-bye."* I traced the code and proved a clean session **can't**
+duplicate (seq-dedup + disjoint catch-up/live partition + once-only drain), so the second narration had to
+be a real response to a real input — I guessed the model recapping on a farewell. The user's reply nailed
+it and was better than my guess: *"I did not say bye-bye, what I did is I tried to lower the volume on my
+macbook pro because it was too loud. this does a beep sound. I find it hard to believe that this was caught
+by the microphone as 'bye bye' … but then … i don't know."* That's exactly it: the macOS volume beep →
+mic → **whisper hallucinated "Bye-bye"** → a phantom user turn Ed answered. Not an `iee` bug at all — a
+textbook case for the grade-and-suppress stack (with grading on + enrolled, that beep scores far below the
+voice centroid → suppressed). Filed `edmini-put`. A real-world noise no synthetic test would ever produce.
+
+**Then, the milestone: the model is hosted.** With `iee` verified and closed, the user said *"continue,"*
+so I took `edmini-5on` — the CAM++ `zh_en` winner from the bake-off, gitignored at ~28 MB, so prod grading
+had been failing open with no model. First Vercel Blob use for the project: created a public store
+(`edmini-tsvad`), uploaded the model → a CORS-open public URL, and added a `TSVAD_MODEL_URL` seam
+(`NEXT_PUBLIC_TSVAD_MODEL_URL ?? "/models/campplus.onnx"`) so prod points at Blob and local dev falls back
+to the file. Two snags worth remembering: the `vercel blob create-store` link step is an interactive
+prompt that left an orphan store before I switched to `--yes`; and I *couldn't* statically grep the inlined
+URL to prove it deployed — the tsvad code (onnxruntime + all) is a dynamic chunk that only loads when
+grading starts. So I stopped short of claiming "verified" and handed the user the one behavioral check
+(grading panel shows *"Speaker grading active"* not *"unavailable"*) — the same discipline the search
+cascade beat into me earlier the same day.
+
+**And tracking, so this doesn't rot.** The user: *"we should track this in code (that we have version X of
+model Y there) so that we can periodically check for updates."* Built `model-manifest.json` (provenance:
+HF source, content `sha256`, repo commit, Blob URL, I/O, license, the `ce9` bake-off that chose it) and
+`pnpm models:check`, which HEADs the HF resolve URL — handily, `x-linked-etag` *is* the file's sha256, so
+a cheap HEAD detects an upstream change without downloading — and Range-GETs the Blob to confirm size.
+Exit 1 on drift, so it's cron/CI-ready. Verified both the match and the tampered-sha paths.
+
+**Content potential:** "claiming victory three times before actually winning" — a debugging-discipline
+piece on verifying the real input vs the mechanism, with the `[history]` diagnostic log as the hero. And
+the beep-as-"bye-bye": the gap between synthetic tests and a microphone in a real room, and why
+speaker-identity is the answer to noise you can't enumerate.
+
+---
+
 ### 2026-06-21 — two streams in parallel: session memory shipped, and the bake-off that overturned its own roadmap
 
 Ran two independent workstreams at once, each in its own git worktree, and merged both to main

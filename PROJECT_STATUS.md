@@ -1,8 +1,38 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `1bb2fc8`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `e51ab89`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22) — iee verified; speaker-ID model hosted on Vercel Blob
+Live-tested `iee` on device; it surfaced a 3-layer `search_history` bug (all fixed), then **`iee` was
+verified + closed**. Hosted the speaker-ID model (`5on`), and added model provenance tracking.
+
+- **`iee` session memory — CLOSED + verified.** Live testing flushed out a cascade in the `search_history`
+  backend, each masking the next: (1) `jsonb` has no `ILIKE` (42883) → query `payload->>keys` ILIKE OR'd;
+  (2) `snapshot` returned **oldest-N** not most-recent (also silently truncated `/api/session` Recent
+  history past 200 events) → return most-recent-N; (3) whole-phrase substring missed the **compound word**
+  ("code name" ≠ stored "codename") → tokenize the query + OR terms. A `[history]` param/count diag log
+  (kept in prod) pinned layers 2–3. The `nvb` eval mock was tightened to mirror real PostgREST (its loose
+  match had let these pass green). Lesson recorded: verify the real input, not a query that happens to work.
+- **`5on` host TS-VAD model — CLOSED + needs-verification.** CAM++ `zh_en` (the `ce9` winner, ~28 MB,
+  gitignored) is now on **Vercel Blob** (store `edmini-tsvad`, public + CORS-open). New `TSVAD_MODEL_URL`
+  seam = `NEXT_PUBLIC_TSVAD_MODEL_URL ?? "/models/campplus.onnx"` (prod → Blob, local dev → file). Deployed
+  `8e694d5`. **On-device verify:** grading panel shows "Speaker grading active" (not "unavailable"/fail-open).
+- **`nvb` eval harness — CLOSED + verified.** `pnpm test:iee`: deterministic CI eval of the iee logic
+  (utterance→session seam, search_history recall, rehydration, catch-up) — no OpenAI/browser. 182 tests.
+- **`13y` model provenance — CLOSED + verified.** `model-manifest.json` (sha256 + source + Blob URL + ce9
+  provenance) + `pnpm models:check` (HEADs HF `x-linked-etag`=sha256 vs recorded; Range-GETs Blob for size;
+  exit 1 on drift). Cron/CI-ready.
+- **`ce9` accuracy — CLOSED + needs-verification.** WINNER CAM++ zh_en (margin 0.538 vs 0.224). Re-tune the
+  grader/classifier threshold on the hosted model on device.
+- **`put` (P2, NEW open)** — non-speech audio (a macOS volume **beep**) → whisper hallucinated "Bye-bye" → a
+  phantom user turn Ed answered. Grade-and-suppress (on + enrolled) already suppresses this; whisper
+  no-speech gating is the belt-and-suspenders. Not an iee bug.
+
+**NEXT (user, on device):** confirm `5on` (enable grading → "Speaker grading active"); re-tune `ce9`
+threshold. Backlog next-up: `hy8` (grading-on-by-default once enrolled — also mitigates `put`), `put`,
+`nvb`-follow-on `7fn` (voice/audio E2E). Periodic model check: wire `pnpm models:check` into CI/cron.
 
 ## CHECKPOINT (2026-06-21) — session memory + speaker-ID accuracy shipped (both needs-verification)
 Two independent streams developed in parallel worktrees, both merged `--no-ff` to main and pushed (`1bb2fc8`,
