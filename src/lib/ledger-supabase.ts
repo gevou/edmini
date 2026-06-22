@@ -42,7 +42,10 @@ export function createLedger(client: SupabaseClient): Ledger {
       if (opts.source) query = query.eq("source", opts.source);
       if (opts.author) query = query.eq("payload->>author", opts.author);
       if (opts.threadIds && opts.threadIds.length) query = query.in("thread_id", opts.threadIds);
-      if (opts.text) query = query.ilike("payload", `%${opts.text}%`);
+      // `payload` is jsonb; ILIKE needs a text operand, so cast the column (`payload::text`). A bare
+      // .ilike("payload", …) errors on jsonb in PostgREST. The route catches snapshot errors (fail-open),
+      // but the cast makes the free-text filter actually work. Verify live (edmini-iee check (a)).
+      if (opts.text) query = query.filter("payload::text", "ilike", `%${opts.text}%`);
       if (opts.limit != null) query = query.limit(opts.limit);
       const { data, error } = await query;
       if (error) throw new Error(`ledger.snapshot failed: ${error.message}`);
