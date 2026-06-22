@@ -1,3 +1,5 @@
+import { projectRuns, type LedgerEvent } from "../ledger";
+
 /**
  * Run registry (edmini-9ex) — the voice client's label↔runId map for supervising N concurrent runs.
  *
@@ -78,4 +80,30 @@ export function createRunRegistry(): RunRegistry {
       return byRun.has(runId);
     },
   };
+}
+
+/**
+ * Rebuild a registry from a ledger snapshot (edmini-iee §1). Pure: replays every `task_dispatch`
+ * in seq order through the existing `register` (collision-suffix rule unchanged), then applies each
+ * run's status from projectRuns. This is what makes cross-session/pre-reload runs resolve a label so
+ * handleLedgerEvent no longer drops their events.
+ */
+export function buildRegistryFromEvents(events: LedgerEvent[]): RunRegistry {
+  const registry = createRunRegistry();
+  const dispatches = events
+    .filter((e) => e.kind === "task_dispatch" && e.runId)
+    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  for (const e of dispatches) {
+    const label = typeof e.payload.label === "string" ? e.payload.label : "";
+    registry.register(e.runId as string, label);
+  }
+  for (const r of projectRuns(events)) {
+    const status: RunStatus =
+      r.lastRunKind === "run_failed" ? "failed"
+        : r.lastRunKind === "run_done" ? "done"
+          : r.lastRunKind === "run_blocked" ? "blocked"
+            : "active";
+    registry.setStatus(r.runId, status);
+  }
+  return registry;
 }
