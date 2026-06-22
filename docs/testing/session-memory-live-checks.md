@@ -5,6 +5,20 @@ The on-device checks that clear `edmini-iee` from `needs-verification`. The hard
 worker off a real Hermes run (slow, non-deterministic). `scripts/ledger-seed.ts` writes those events
 directly so the timing is scriptable and you don't wait on Hermes.
 
+## What's automated vs. what needs your ear
+
+**Automated (CI, `edmini-nvb`):** `pnpm test:iee` runs a deterministic suite that exercises all the iee
+**logic** end-to-end — utterance→session Recent-history seam, `search_history` recall, cross-session
+registry rehydration, and catch-up selection — with no OpenAI, browser, or network. This is what guards
+against regressions; run it in CI. It does NOT (and can't, deterministically) cover two things:
+
+1. **Live OpenAI narration** — that Ed actually *speaks* the result/catch-up.
+2. **~10 lines of `VoiceAgent.tsx` data-channel glue** — `dc.onopen` firing the catch-up batch and
+   `handleLedgerEvent` seq-dedup. (Browser+OpenAI E2E → `edmini-7fn`.)
+
+So the manual pass below is now narrow: **you're only confirming the two things above** — that the live
+voice loop speaks what the logic (already CI-tested) decided. Use the one-command scenarios.
+
 ## Preconditions
 
 - App open (prod `https://edmini.vercel.app` or local `pnpm dev`). Keep the **events panel** visible.
