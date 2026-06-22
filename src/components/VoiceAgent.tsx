@@ -181,6 +181,13 @@ export default function VoiceAgent() {
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
+  // The raw mic track + its WebRTC sender, so we can mute it TO OpenAI during enrollment (replaceTrack
+  // null) without disturbing the TS-VAD tap, which reads the mic via its own AudioContext.
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const micSenderRef = useRef<RTCRtpSender | null>(null);
+  // True while the enrollment modal is open: mic is muted to OpenAI and narration is paused, so Ed
+  // doesn't respond to the recited passage or speak background updates mid-enrollment.
+  const enrollingRef = useRef<boolean>(false);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const pendingUserTextRef = useRef<string | null>(null);
@@ -285,7 +292,8 @@ export default function VoiceAgent() {
   const tryDrain = useCallback(() => {
     const dc = dcRef.current;
     const canSpeak =
-      !!dc && dc.readyState === "open" && !userSpeakingRef.current && !responseActiveRef.current;
+      !!dc && dc.readyState === "open" && !userSpeakingRef.current && !responseActiveRef.current
+      && !enrollingRef.current; // don't narrate mid-enrollment
     const batch = narrationQueueRef.current!.drain(canSpeak);
     if (batch) injectNarration(batch);
   }, [injectNarration]);
@@ -823,6 +831,9 @@ export default function VoiceAgent() {
         }
       }
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      // Keep the mic track + its sender so we can mute it to OpenAI during enrollment.
+      micTrackRef.current = stream.getAudioTracks()[0] ?? null;
+      micSenderRef.current = pc.getSenders().find((s) => s.track?.kind === "audio") ?? null;
 
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
@@ -900,6 +911,19 @@ export default function VoiceAgent() {
     }
   }, [handleDataChannelMessage, handleLedgerEvent, fireResponse, apiKey, recordVoiceThread]);
 
+  // Enter/leave enrollment: while enrolling, mute the mic TO OpenAI (replaceTrack null) so Ed can't hear
+  // the recited passage, and pause narration. The TS-VAD tap is unaffected (separate AudioContext), so
+  // enrollment capture still works. Restored when enrollment ends.
+  const setEnrolling = useCallback((active: boolean) => {
+    enrollingRef.current = active;
+    void micSenderRef.current?.replaceTrack(active ? null : micTrackRef.current);
+    pushEvent({
+      kind: "info",
+      label: active ? "Enrolling — Ed paused (mic muted to model)" : "Enrollment ended — Ed resumed",
+    });
+    if (!active) tryDrain(); // flush anything that queued while paused
+  }, [tryDrain]);
+
   const stopSession = useCallback(() => {
     const activeId = currentTurnIdRef.current;
     currentTurnIdRef.current = null;
@@ -918,6 +942,9 @@ export default function VoiceAgent() {
     ledgerChannelRef.current = null;
     try { localStorage.setItem(LAST_SEEN_SEQ_KEY, String(lastProcessedSeqRef.current)); } catch { /* ignore */ }
     lastProcessedSeqRef.current = 0;
+    enrollingRef.current = false;
+    micTrackRef.current = null;
+    micSenderRef.current = null;
     runRegistryRef.current = createRunRegistry();
     narrationQueueRef.current = createNarrationQueue();
     pendingToolResponsesRef.current = [];
@@ -976,8 +1003,8 @@ export default function VoiceAgent() {
       <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.6)", zIndex: 50, padding: 16 }}>
         <VoiceEnrollment
           vad={vadRef.current}
-          onComplete={() => { setShowEnroll(false); pushEvent({ kind: "info", label: "Voice enrolled — grading now gates to you" }); }}
-          onCancel={() => setShowEnroll(false)}
+          onComplete={() => { setEnrolling(false); setShowEnroll(false); pushEvent({ kind: "info", label: "Voice enrolled — grading now gates to you" }); }}
+          onCancel={() => { setEnrolling(false); setShowEnroll(false); }}
         />
       </div>
     )}
@@ -1031,7 +1058,7 @@ export default function VoiceAgent() {
             {gradingOn ? "grading on" : "grading off"}
           </button>
           {gradingOn && vadRef.current && status !== "idle" && (
-            <button onClick={() => setShowEnroll(true)} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
+            <button onClick={() => { setShowEnroll(true); setEnrolling(true); }} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
               enroll
             </button>
           )}
