@@ -42,10 +42,16 @@ export function createLedger(client: SupabaseClient): Ledger {
       if (opts.source) query = query.eq("source", opts.source);
       if (opts.author) query = query.eq("payload->>author", opts.author);
       if (opts.threadIds && opts.threadIds.length) query = query.in("thread_id", opts.threadIds);
-      // `payload` is jsonb; ILIKE needs a text operand, so cast the column (`payload::text`). A bare
-      // .ilike("payload", …) errors on jsonb in PostgREST. The route catches snapshot errors (fail-open),
-      // but the cast makes the free-text filter actually work. Verify live (edmini-iee check (a)).
-      if (opts.text) query = query.filter("payload::text", "ilike", `%${opts.text}%`);
+      // Free-text over `payload` (jsonb). Postgres has no ILIKE for jsonb (42883), and PostgREST can't
+      // cast the column in a filter (a `payload::text` filter is NOT applied), so we ILIKE the extracted
+      // text-bearing keys, OR'd together. Sanitize the needle of PostgREST or()-grammar metachars (`,()`).
+      if (opts.text) {
+        const needle = opts.text.replace(/[,()]/g, " ").trim();
+        if (needle) {
+          const keys = ["text", "summary", "question", "error", "instruction", "label"];
+          query = query.or(keys.map((k) => `payload->>${k}.ilike.%${needle}%`).join(","));
+        }
+      }
       if (opts.limit != null) query = query.limit(opts.limit);
       const { data, error } = await query;
       if (error) throw new Error(`ledger.snapshot failed: ${error.message}`);

@@ -56,8 +56,16 @@ function makeMemoryLedger(): Ledger {
       if (!row.threadId || !opts.threadIds.includes(row.threadId)) return false;
     }
     if (opts.text !== undefined) {
-      const needle = opts.text.toLowerCase();
-      if (!JSON.stringify(row.payload).toLowerCase().includes(needle)) return false;
+      // Mirror the real binding: ILIKE only the text-bearing payload keys (jsonb has no ILIKE), with
+      // the same metachar sanitization. NOT a whole-payload stringify match — that was more permissive
+      // than PostgREST and let a real prod failure pass green.
+      const needle = opts.text.replace(/[,()]/g, " ").trim().toLowerCase();
+      const hay = ["text", "summary", "question", "error", "instruction", "label"]
+        .map((k) => row.payload?.[k])
+        .filter((v): v is string => typeof v === "string")
+        .join(" ")
+        .toLowerCase();
+      if (needle && !hay.includes(needle)) return false;
     }
     return true;
   }
