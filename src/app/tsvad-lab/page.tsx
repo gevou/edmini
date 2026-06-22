@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createBrowserTargetSpeakerVad,
+  TSVAD_MODEL_URL,
   type ScoreEvent,
   type TargetSpeakerVad,
 } from "@/lib/tsvad";
@@ -20,7 +21,7 @@ import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
 type Phase = "idle" | "loading" | "running" | "error";
 
-const DEFAULT_MODEL_URL = "/models/campplus.onnx";
+const DEFAULT_MODEL_URL = TSVAD_MODEL_URL;
 
 export default function TsvadLabPage() {
   const [phase, setPhase] = useState<Phase>("idle");

@@ -44,6 +44,14 @@ import { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-
 import { createLocalStorageEnrollmentStore } from "./enrollment-store";
 import { createTargetSpeakerVad, type TargetSpeakerVad, type TargetSpeakerVadOptions } from "./pipeline";
 
+/**
+ * Where the speaker-embedding ONNX is served from. Prod points at the Vercel Blob URL (the ~28 MB model
+ * is gitignored, so it isn't in the deployed bundle) via NEXT_PUBLIC_TSVAD_MODEL_URL; local dev falls back
+ * to the file in public/models. The chosen model is CAM++ zh_en (edmini-ce9 bake-off / edmini-5on).
+ */
+export const TSVAD_MODEL_URL =
+  process.env.NEXT_PUBLIC_TSVAD_MODEL_URL ?? "/models/campplus.onnx";
+
 export interface BrowserTargetSpeakerVadOptions
   extends Omit<TargetSpeakerVadOptions, "embedder" | "store"> {
   /** URL of the CAM++ ONNX model (e.g. "/models/campplus.onnx"). */

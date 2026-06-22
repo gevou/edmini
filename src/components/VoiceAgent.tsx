@@ -15,7 +15,7 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
-import { createBrowserTargetSpeakerVad, type TargetSpeakerVad } from "@/lib/tsvad";
+import { createBrowserTargetSpeakerVad, TSVAD_MODEL_URL, type TargetSpeakerVad } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
@@ -812,7 +812,7 @@ export default function VoiceAgent() {
       });
       if (gradingEnabledRef.current) {
         try {
-          const vad = await createBrowserTargetSpeakerVad({ modelUrl: "/models/campplus.onnx" });
+          const vad = await createBrowserTargetSpeakerVad({ modelUrl: TSVAD_MODEL_URL });
           await vad.start(stream);                       // taps the mic; does NOT consume it
           vad.onScore((e) => graderRef.current!.addScore(e.raw, e.level));
           vadRef.current = vad;
