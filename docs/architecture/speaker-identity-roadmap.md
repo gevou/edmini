@@ -96,5 +96,6 @@ to Vercel Blob → set `modelUrl`.** Not urgent (laptop test works now). → bea
 |---|---|---|
 | `edmini-hy8` | UX refinement: enrollment-gated grading (drop toggle); per-message grade on responded turns | 5y7 |
 | `edmini-ce9` | TS-VAD accuracy: English bake-off (CAM++ zh_en, ERES2Net) + top1−top2 margin logic | 7vr |
-| `edmini-6kl` | `enroll_speaker` tool — proactive (now); retroactive needs the rolling buffer | 7vr, acc |
-| `edmini-q1e` | Multi-speaker roster + auto-tag (N centroids, argmax+margin, per-speaker `from`) | acc, enr |
+| `edmini-6kl` | `enroll_speaker` tool — proactive (now); retroactive needs the rolling buffer | 7vr, ce9 |
+| `edmini-q1e` | Multi-speaker roster + auto-tag (N centroids, argmax+margin, per-speaker `from`) | ce9, 6kl |
+| `edmini-5on` | Host the chosen model on Vercel Blob; set `modelUrl` (after the bake-off) | ce9 |
