@@ -34,6 +34,7 @@ export { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-
 export { createLocalStorageEnrollmentStore } from "./enrollment-store";
 export {
   createTargetSpeakerVad,
+  scoreWindow,
   type TargetSpeakerVad,
   type TargetSpeakerVadOptions,
   type ScoreEvent,
@@ -42,8 +43,9 @@ export {
 } from "./pipeline";
 
 import { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-onnx";
-import { createLocalStorageEnrollmentStore } from "./enrollment-store";
+import { createLocalStorageRosterStore } from "./roster-store";
 import { createTargetSpeakerVad, type TargetSpeakerVad, type TargetSpeakerVadOptions } from "./pipeline";
+import type { Roster } from "./types";
 
 /**
  * Where the speaker-embedding ONNX is served from. Prod points at the Vercel Blob URL (the ~28 MB model
@@ -54,16 +56,16 @@ export const TSVAD_MODEL_URL =
   process.env.NEXT_PUBLIC_TSVAD_MODEL_URL ?? "/models/campplus.onnx";
 
 export interface BrowserTargetSpeakerVadOptions
-  extends Omit<TargetSpeakerVadOptions, "embedder" | "store"> {
+  extends Omit<TargetSpeakerVadOptions, "embedder" | "roster" | "onEnrolled"> {
   /** URL of the CAM++ ONNX model (e.g. "/models/campplus.onnx"). */
   modelUrl: string;
   /** Override embedder options (tensor names, layout, execution providers). */
   embedderOptions?: Partial<OnnxEmbedderOptions>;
-  /** localStorage key for the enrollment (default: tsvad_enrollment). */
+  /** localStorage key for the roster (default: tsvad_roster). */
   storageKey?: string;
 }
 
-/** Build the production stack (CAM++ ONNX + localStorage enrollment) in one call. */
+/** Build the production stack (CAM++ ONNX + localStorage roster) in one call. */
 export async function createBrowserTargetSpeakerVad(
   opts: BrowserTargetSpeakerVadOptions,
 ): Promise<TargetSpeakerVad> {
@@ -71,9 +73,21 @@ export async function createBrowserTargetSpeakerVad(
     modelUrl: opts.modelUrl,
     ...opts.embedderOptions,
   });
+  const rosterStore = createLocalStorageRosterStore(opts.storageKey);
+  const roster: Roster = rosterStore.load();
+
   return createTargetSpeakerVad({
     embedder,
-    store: createLocalStorageEnrollmentStore(opts.storageKey),
+    roster,
+    onEnrolled(e) {
+      // Upsert the principal member in the stored roster and persist.
+      const current = rosterStore.load();
+      const updatedMembers = [
+        ...current.members.filter((m) => m.id !== "principal"),
+        { id: "principal", name: e.name, enrollment: e },
+      ];
+      rosterStore.save({ principalId: "principal", members: updatedMembers });
+    },
     gateConfig: opts.gateConfig,
     windowMs: opts.windowMs,
     hopMs: opts.hopMs,
