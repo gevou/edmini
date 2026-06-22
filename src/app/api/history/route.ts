@@ -34,6 +34,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const ledger = ledgerFromEnv({ serviceRole: true });
     const events = await ledger.snapshot(opts);
+    // Diagnostic (edmini-iee): what the model searched and how many it got back. Lets us see, from the
+    // Vercel runtime logs, whether a miss is a too-narrow query vs an ordering/limit problem.
+    console.log(`[history] params=${JSON.stringify(body)} opts=${JSON.stringify(opts)} returned=${events.length}`);
     return Response.json({ events });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

@@ -50,24 +50,36 @@ describe("createLedger.append", () => {
 });
 
 describe("createLedger.snapshot", () => {
-  it("orders by seq, maps rows, and applies runId/limit when given", async () => {
-    // chainable + thenable query-builder mock
+  const rowA = { ...sampleRow, seq: 1 };
+  const rowB = { ...sampleRow, seq: 2 };
+
+  function mockClient(returned: unknown[]) {
     const q: Record<string, unknown> = {};
     q.order = vi.fn(() => q);
     q.eq = vi.fn(() => q);
     q.limit = vi.fn(() => q);
-    q.then = (resolve: (v: unknown) => unknown) => resolve({ data: [sampleRow], error: null });
+    q.then = (resolve: (v: unknown) => unknown) => resolve({ data: returned, error: null });
     const select = vi.fn(() => q);
     const from = vi.fn(() => ({ select }));
-    const ledger = createLedger({ from } as never);
+    return { q, select, ledger: createLedger({ from } as never) };
+  }
 
+  it("with a limit, requests the most RECENT N (desc) and returns them chronological", async () => {
+    // The DB, ordered desc + limited, yields newest→oldest; snapshot must reverse to oldest→newest.
+    const { q, select, ledger } = mockClient([rowB, rowA]);
     const out = await ledger.snapshot({ runId: "t1", limit: 10 });
-
     expect(select).toHaveBeenCalledWith("*");
-    expect(q.order).toHaveBeenCalledWith("seq", { ascending: true });
+    expect(q.order).toHaveBeenCalledWith("seq", { ascending: false });
     expect(q.eq).toHaveBeenCalledWith("run_id", "t1");
     expect(q.limit).toHaveBeenCalledWith(10);
-    expect(out).toEqual([fromRow(sampleRow)]);
+    expect(out).toEqual([fromRow(rowA), fromRow(rowB)]); // reversed to chronological
+  });
+
+  it("without a limit, returns the full set ascending (no reverse)", async () => {
+    const { q, ledger } = mockClient([rowA, rowB]);
+    const out = await ledger.snapshot();
+    expect(q.order).toHaveBeenCalledWith("seq", { ascending: true });
+    expect(out).toEqual([fromRow(rowA), fromRow(rowB)]);
   });
 });
 

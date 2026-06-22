@@ -35,7 +35,11 @@ export function createLedger(client: SupabaseClient): Ledger {
     },
 
     async snapshot(opts = {}) {
-      let query = client.from(TABLE).select("*").order("seq", { ascending: true });
+      // When a limit is set, take the most RECENT N (order desc + limit, then reverse to chronological).
+      // A bare ascending+limit returns the OLDEST N — wrong for every consumer here (recent-history
+      // injection and search_history recall both want recent context). No limit → full set, ascending.
+      const recentN = opts.limit != null;
+      let query = client.from(TABLE).select("*").order("seq", { ascending: !recentN });
       if (opts.runId) query = query.eq("run_id", opts.runId);
       if (opts.since) query = query.gte("ts", opts.since);
       if (opts.until) query = query.lte("ts", opts.until);
@@ -55,7 +59,8 @@ export function createLedger(client: SupabaseClient): Ledger {
       if (opts.limit != null) query = query.limit(opts.limit);
       const { data, error } = await query;
       if (error) throw new Error(`ledger.snapshot failed: ${error.message}`);
-      return (data as LedgerRow[]).map(fromRow);
+      const rows = (data as LedgerRow[]).map(fromRow);
+      return recentN ? rows.reverse() : rows; // most-recent-N, returned oldest→newest
     },
 
     subscribe(onEvent) {

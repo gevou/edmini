@@ -84,11 +84,11 @@ function makeMemoryLedger(): Ledger {
     },
 
     async snapshot(opts = {}) {
-      // Sort by seq ASC (already insertion order, but be explicit)
       const sorted = [...rows].sort((a, b) => a.seq - b.seq);
       const filtered = sorted.filter((r) => matches(r, opts));
-      // limit applied AFTER ordering (mirrors PostgREST)
-      return opts.limit !== undefined ? filtered.slice(0, opts.limit) : filtered;
+      // Mirror the real binding: when a limit is set, return the most RECENT N (chronological order),
+      // not the oldest N. No limit → full ascending set.
+      return opts.limit !== undefined ? filtered.slice(-opts.limit) : filtered;
     },
 
     subscribe() {
