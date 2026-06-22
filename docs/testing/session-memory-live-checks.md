@@ -27,6 +27,22 @@ pnpm ledger:seed tail [n]                          # print the last n ledger eve
 
 ---
 
+## Fastest path — guided scenarios (recommended)
+
+Each check is **one command** that seeds the ledger, prompts you at each browser step (no copy-pasting
+runIds, no timing guesswork), and tells you the pass/fail signal:
+
+```bash
+pnpm ledger:seed scenario b   # cross-session delivery — start a session when prompted, it fires the reply
+pnpm ledger:seed scenario c   # catch-up on resume — start, stop, resume when prompted
+pnpm ledger:seed scenario a   # memory — seeds history + filler, you ask two questions
+```
+
+Run it, follow the `▶` prompts (hit Enter after each browser action), read the PASS/FAIL line it prints.
+The manual breakdown below is the granular fallback if you want to drive the steps yourself or vary them.
+
+---
+
 ## Check (b) — cross-session delivery (the registry-rehydration fix)
 
 *An event for a run NOT dispatched in this session must still narrate. Pre-iee: `labelFor`→null→dropped.*
