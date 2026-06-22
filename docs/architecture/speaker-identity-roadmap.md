@@ -82,6 +82,14 @@ very different in difficulty: → bead **`edmini-6kl`**.
 
 Both expose an `enroll_speaker(name)` tool to the voice model, gated to the principal.
 
+## Prod model hosting — DECIDED: Vercel Blob (2026-06-21)
+
+The CAM++ ONNX (~28 MB) is gitignored, so prod (phone) grading **fails open** until it's hosted. The
+laptop dev test works with the local file. **Decision: host the *chosen* model on Vercel Blob** and
+point the embedder `modelUrl` at the Blob URL — NOT committed to git (avoids 28 MB binaries in history,
+and we're swapping model variants in `edmini-ce9`). **Sequence: run `ce9` (bake-off) → upload the winner
+to Vercel Blob → set `modelUrl`.** Not urgent (laptop test works now). → bead **`edmini-5on`**.
+
 ## Bead map
 
 | Bead | Scope | Depends on |
