@@ -1,8 +1,23 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `f9fda65`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `511b039`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22e) — txc: defensible verification EER + bootstrap CI (DONE, verified)
+`edmini-txc` closed + verified (`511b039`). The bake-off validator no longer reports only the crude
+ALL-PAIRS pooled EER (which went 0%/non-discriminating on the 2-speaker set). It now computes a
+**verification EER** mirroring the live gate — leave-one-out centroids via the real enrollment recipe
+(`enrollment.ts`), genuine = test-vs-own-centroid, impostor = test-vs-other-centroids, swept to the
+equal-error point — plus a **bootstrap 95% CI** (1000 iters, seeded `mulberry32(42)`). Old all-pairs
+number kept, relabeled "pooled, indicative".
+- Math extracted to a **pure, unit-tested module** `src/lib/tsvad/eer.ts` (`eer.test.ts`, 11 cases) —
+  vitest only includes `src/**`/`worker/**`, and this matches the tsvad layer's pure-module convention.
+  Script (`scripts/tsvad-validate.ts`) just imports + wires it.
+- Doc updated: `docs/architecture/tsvad-bakeoff-results.md` (methodology section + re-run pointer for
+  `dn9`). 203 tests / tsc / build green. Real defensible EER still needs `edmini-dn9` (more speakers —
+  CI only meaningful at real-sized set).
+- pnpm-lock churn (8-vs-9 skew) restored, not committed — only the 4 task files staged.
 
 ## CHECKPOINT (2026-06-22d) — SPEAKER-IDENTITY WORKSTREAM CLOSED
 The full arc is shipped + live: TS-VAD engine → grade-and-suppress → English bake-off (CAM++ zh_en)

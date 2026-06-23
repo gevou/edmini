@@ -20,6 +20,63 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — making the bake-off's EER mean something (and admitting it didn't)
+
+A small, surgical follow-up to the closed speaker-identity workstream, but one worth recording because it's
+the rare case of **going back to harden a number we'd already published as "indicative."** The bake-off
+results doc ([`tsvad-bakeoff-results.md`](docs/architecture/tsvad-bakeoff-results.md)) had an EER column
+reading **0% for all four models**, with an honest footnote that the separation was clean enough on the
+tiny 2-speaker set that *any* threshold split same from diff — so EER was non-discriminating and the
+**margin** decided the bake-off. True, but the 0% sat there looking like a result. `edmini-txc` was the
+debt: make the EER defensible or drop it.
+
+The core realization is that the old number wasn't just imprecise — it measured **the wrong thing**. It was
+an *all-pairs pooled* EER: sweep one threshold over every same-speaker vs different-speaker clip-*pair*
+cosine. But the live gate ([`speaker-classifier.ts`](src/lib/tsvad/speaker-classifier.ts)) doesn't compare
+pairs of clips — it's a **verification** decision: enroll → centroid, then score a test utterance's cosine
+against that centroid and accept iff `top1 ≥ absThreshold`. So the validator now computes a **verification
+EER** that mirrors the gate exactly: leave-one-out centroids built through the *real* enrollment recipe
+([`enrollment.ts`](src/lib/tsvad/enrollment.ts) — per-window L2 → mean → L2, the same code the device
+runs), genuine = held-out clip vs its own centroid, impostor = that clip vs every *other* speaker's
+centroid (a stranger scored against the enrolled roster). LOO because on a tiny set you can't spare a
+fixed holdout — every clip has to pull double duty without leaking into its own centroid.
+
+The second half was honesty about precision: a bootstrap **95% CI** (1000 resamples of the genuine/impostor
+score arrays, recompute EER each time, take the 2.5/97.5 percentiles). A single small-sample EER shouldn't
+read as a hard number; error bars say "this is what we know and how much we don't." Seeded the bootstrap
+with a deterministic `mulberry32(42)` so the *reported* CI is reproducible run-to-run — the no-`Math.random`
+rule is a Workflow-script constraint, not a tsx one, but a seeded generator makes a doc-able number stable,
+which is the whole point of putting it in a results table.
+
+**The one design call worth flagging:** the task said "code-only, scripts/tsvad-validate.ts" — but I put the
+EER + bootstrap *math* in a new pure module ([`src/lib/tsvad/eer.ts`](src/lib/tsvad/eer.ts)) and only the
+*wiring* in the script. Two reasons, and they pulled the same way: vitest's `include` is `src/**` and
+`worker/**` — a test next to the script wouldn't even run — and the repo's whole tsvad layer is pure,
+unit-tested modules (cosine, enrollment, classifier). Burying probability math in an untested script is
+exactly the kind of thing that reads as "validated" without being. So: 11 vitest cases pinning the
+behavior — separable → 0, identical distributions → 0.5, partial-overlap brackets strictly between,
+empty-input throws (rather than reporting a misleading 0), seeded reproducibility. TDD for real here: wrote
+`eer.test.ts`, watched it fail on the missing module, then implemented.
+
+Ran it through both the synthetic fixture and the real `campplus_zh_en.onnx`. A nice incidental confirmation
+of the thesis: on synthetic voices through the real model, the **verification** EER read 0% (cleanly
+separable in the centroid framing) while the **all-pairs** EER was 11.5% — the pooled pairwise number is
+just noisier and less like what the gate does. The verification framing isn't only more correct, it's
+visibly tighter. The real defensible EER still waits on `edmini-dn9` (more speakers — the CI is only
+meaningful with a real-sized set); the doc now carries a re-run pointer for when that data lands.
+
+203 tests / `tsc --noEmit` / `next build` all green. Commit
+[`511b039`](https://github.com/gevou/edmini/commit/511b039). Closed + labeled verified (it's a dev tool I
+can verify by running). Watched the pnpm-lock churn (the 8-vs-9 skew) and restored it — git add only the
+four task files.
+
+**Content potential:** "the 0% that meant nothing" — a clean little parable about measuring the wrong thing
+(pooled pairwise) vs the thing your system actually does (centroid verification), and why a metric that
+*can't* discriminate is worse than no metric because it looks like one. Plus error bars as humility: the CI
+exists so a 2-speaker number can't masquerade as a 50-speaker one.
+
+---
+
 ### 2026-06-22 — closing the speaker-identity workstream: one fact, a docs check, and a visible state
 
 The tail of the roster work, where the user's questions did the most for the design.
