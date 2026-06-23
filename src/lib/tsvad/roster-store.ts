@@ -49,6 +49,11 @@ export function createLocalStorageRosterStore(storageKey = KEY): RosterStore {
       };
       localStorage.setItem(storageKey, JSON.stringify(s));
     },
-    clear() { localStorage.removeItem(storageKey); },
+    clear() {
+      localStorage.removeItem(storageKey);
+      // Also drop the legacy single-enrollment key this store migrates from — otherwise a cleared
+      // roster would silently re-migrate it on the next load(). "Clear" must mean no persisted voice.
+      localStorage.removeItem(LEGACY_KEY);
+    },
   };
 }

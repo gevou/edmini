@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createBrowserTargetSpeakerVad,
+  createLocalStorageRosterStore,
   TSVAD_MODEL_URL,
   type ScoreEvent,
   type TargetSpeakerVad,
@@ -35,6 +36,9 @@ export default function TsvadLabPage() {
   const vadRef = useRef<TargetSpeakerVad | null>(null);
   const micRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Same RosterStore the VAD persists to (default key `tsvad_roster`) — so "Clear" actually clears the
+  // stored voice instead of only the legacy key, which left the roster behind to re-load on refresh.
+  const rosterStoreRef = useRef<ReturnType<typeof createLocalStorageRosterStore> | null>(null);
 
   const start = useCallback(async () => {
     setError(null);
@@ -58,7 +62,7 @@ export default function TsvadLabPage() {
 
   const clearEnrollment = useCallback(() => {
     try {
-      localStorage.removeItem("tsvad_enrollment");
+      (rosterStoreRef.current ??= createLocalStorageRosterStore()).clear();
     } catch {
       /* ignore */
     }
