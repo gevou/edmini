@@ -17,6 +17,7 @@ import {
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
 import { createBrowserTargetSpeakerVad, createLocalStorageRosterStore, createSpeakerClassifier, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
+import { isLikelyNonSpeech, type TranscriptLogprob } from "@/lib/voice/transcript-confidence";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
 /**
@@ -219,6 +220,10 @@ export default function VoiceAgent() {
   // Grade to attach to the next RESPONDED user turn (hy8). Set on a respond decision when enrolled,
   // consumed when that turn's transcript backfills. Null = no chip (grading off / not enrolled).
   const lastRespondGradeRef = useRef<number | null>(null);
+  // Flag: a NOT-enrolled (pass-through) respond turn whose response was DEFERRED at commit (edmini-put).
+  // There's no speaker evidence to gate on, so we wait for the transcript+logprobs and reject non-speech
+  // whisper hallucinations (e.g. a beep → "Bye-bye") before firing the response or logging the turn.
+  const passthroughPendingRef = useRef<boolean>(false);
   // N-speaker classifier (q1e): runs alongside the grader for identification-only labeling.
   const classifierRef = useRef<SpeakerClassifier | null>(null);
   if (!classifierRef.current) classifierRef.current = createSpeakerClassifier();
@@ -646,8 +651,17 @@ export default function VoiceAgent() {
         // label, which can be "unknown" near the margin). Null name → recorded/rendered as "User".
         pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
         turnSpeakerRef.current = principal?.name ?? null;
-        lastRespondGradeRef.current = vadRef.current?.isEnrolled() ? confidence : null;
-        fireResponse(() => {}, { metadata: { src: "client" } });
+        const enrolled = vadRef.current?.isEnrolled() ?? false;
+        lastRespondGradeRef.current = enrolled ? confidence : null;
+        if (enrolled) {
+          // Speaker-gated: a beep already scored below the centroid → suppressed above, so a turn that
+          // reaches here is genuinely the principal. Respond immediately (no added latency).
+          fireResponse(() => {}, { metadata: { src: "client" } });
+        } else {
+          // Pass-through (not enrolled): no speaker evidence to reject a non-speech beep. Defer the
+          // response until the transcript + logprobs arrive so we can drop whisper hallucinations (put).
+          passthroughPendingRef.current = true;
+        }
       } else {
         // Grader says not-the-principal. Distinguish an ENROLLED non-principal (remember + attribute,
         // don't act) from a genuinely unknown speaker (delete + heard, forgotten).
@@ -828,9 +842,25 @@ export default function VoiceAgent() {
         recordHeard(t, confidence);
         return;
       }
-      const transcript = serverEvent.transcript as string;
-      if (transcript?.trim()) {
-        const text = transcript.trim();
+      const transcript = serverEvent.transcript as string | undefined;
+      const text = transcript?.trim() ?? "";
+      // Pass-through deferred-response gate (edmini-put): for a NOT-enrolled turn the response was held at
+      // commit. Now that we have the transcript + logprobs, reject non-speech whisper hallucinations (a
+      // system beep → "Bye-bye") so they never fire a phantom response or log a fake user_utterance.
+      if (passthroughPendingRef.current) {
+        passthroughPendingRef.current = false;
+        const logprobs = serverEvent.logprobs as TranscriptLogprob[] | undefined;
+        if (!text || isLikelyNonSpeech({ transcript: text, logprobs })) {
+          pushEvent({ kind: "info", label: "Dropped non-speech (pass-through)", detail: text || "(empty)" });
+          recordHeard(text || null, 0); // logged as `heard`, not a user_utterance; no response fired
+          turnSpeakerRef.current = null;
+          lastRespondGradeRef.current = null;
+          return;
+        }
+        // Genuine speech → fire the response we deferred at commit, then fall through to log/render it.
+        fireResponse(() => {}, { metadata: { src: "client" } });
+      }
+      if (text) {
         const grade = lastRespondGradeRef.current ?? undefined; // speaker-ID confidence for this answered turn
         lastRespondGradeRef.current = null;
         const speaker = turnSpeakerRef.current ?? undefined; // the ONE canonical speaker (q1e)
@@ -1052,6 +1082,7 @@ export default function VoiceAgent() {
     turnSpeakerRef.current = null;
     suppressedTurnRef.current = null;
     retainedTurnRef.current = false;
+    passthroughPendingRef.current = false;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     try { localStorage.setItem(LAST_SEEN_SEQ_KEY, String(lastProcessedSeqRef.current)); } catch { /* ignore */ }

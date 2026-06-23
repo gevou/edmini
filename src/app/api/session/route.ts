@@ -221,6 +221,10 @@ Each run works in the background. Its updates are relayed to you as system notif
         },
         tools,
         tool_choice: "auto",
+        // Request per-token transcription logprobs (edmini-put). The not-enrolled pass-through path uses
+        // them to reject non-speech whisper hallucinations (e.g. a system beep → "Bye-bye") before they
+        // become a phantom response or a fake ledger turn. Session-level field per the GA Realtime spec.
+        include: ["item.input_audio_transcription.logprobs"],
       },
     }),
   });
