@@ -4,7 +4,14 @@
 `main` (git), in sync with origin. Latest `7311556`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
 
-## CHECKPOINT (2026-06-22g) — put: non-speech phantom-turn rejection (DONE, needs-verification)
+## CHECKPOINT (2026-06-22g) — put: non-speech phantom-turn rejection (DONE, VERIFIED)
+**Device-verified 2026-06-23:** user cleared enrollment → volume beep → no phantom turn/response (bug did
+not reproduce). Edge case accepted: a beep overlapping live speech corrupts transcription logprobs → put
+drops that turn (rare). Test ran on localhost (no ledger artifact — no local Supabase creds); accepted on
+browser observation. Verified the prod ledger via `edmini.vercel.app/api/history` + Vercel runtime logs
+(latest write seq 228 @05:36; all suppressions were grader `heard` w/ nonzero cosine, none via put — the
+user stays enrolled so the grader does the real work). Label flipped to `verified`.
+
 `edmini-put` closed (`7311556`). Closes the not-enrolled pass-through gap where a non-speech beep →
 whisper "Bye-bye" → phantom Ed response + fake ledger turn (enrolled case already handled by hy8).
 - **Verified, not assumed:** GA Realtime exposes per-token transcription `logprobs` (session-level
