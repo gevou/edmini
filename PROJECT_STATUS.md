@@ -69,7 +69,8 @@ non-principals (in-session + durable). 192 tests / tsc / build green.
   whenever enrolled; also closes the beep phantom `put`); `ce9` — re-tune classifier thresholds on device
   (defaults work); `put` — whisper-hallucination phantom-turn gate; `xcs` — point tsvad-lab at the roster
   store; `7fn` — voice/audio E2E harness; `txc`/`dn9` — EER polish + more speaker data; `6kl` — voice-
-  triggered enroll; `qo3` — addressivity. Manual: delete the empty orphan Blob store `edmini-models`.
+  triggered enroll; `qo3` — addressivity. ~~Manual: delete the empty orphan Blob store `edmini-models`~~
+  — DONE 2026-06-23 (`vercel blob delete-store store_d6eFGWx5CS8MfIHh`; live `edmini-tsvad` untouched).
 
 ## CHECKPOINT (2026-06-22c) — multi-speaker roster (q1e) shipped, identify-only
 - **`q1e` multi-speaker roster — CLOSED + needs-verification (merged `37f3ec6`).** Manual, **identify-only**
