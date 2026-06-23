@@ -1,8 +1,23 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `aee4d49`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `37f3ec6`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22c) — multi-speaker roster (q1e) shipped, identify-only
+- **`q1e` multi-speaker roster — CLOSED + needs-verification (merged `37f3ec6`).** Manual, **identify-only**
+  multi-speaker enrollment. Roster of N named centroids (one principal) in `tsvad_roster` (migrates the
+  legacy single enrollment). Pipeline scores each window vs every member (embed once, `scoreWindow`); the
+  **principal's** cosine still drives the respond/suppress gate — **byte-identical to before** (opus-verified
+  back-compat; gate/grader untouched). N-way `SpeakerClassifier` labels each turn with a name (or "unknown")
+  for DISPLAY only — Ed acts ONLY on the principal. UI: add-another-voice + roster view; single store.
+  4 tasks subagent-driven + per-task review + opus whole-branch review (1 blocker fixed: `applyRoster` no
+  longer silently re-promotes after principal removal → `selectPrincipal` respects null = pass-through).
+  192 tests. **VERIFY on device:** enroll yourself → "add another voice" for a 2nd person → they speak →
+  *labeled* but Ed does NOT act on them; you speak → responded + your name; remove yourself → Ed goes
+  pass-through (doesn't switch to the other voice).
+- **NEW follow-up bead** — q1e minors: roster reactivity via real state (drop the `rosterVersion>=0` trick);
+  point `tsvad-lab` at the roster store (legacy-key drift).
 
 ## CHECKPOINT (2026-06-22b) — enrollment UX polish; starting the multi-speaker roster (q1e)
 On-device use of the speaker-ID feature drove a run of polish, then a roster decision.

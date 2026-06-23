@@ -20,6 +20,46 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — the multi-speaker roster, built iee-way, and the integration gate earning its keep
+
+Shipped the `q1e` thin slice — manual, **identify-only** multi-speaker enrollment — as a four-task,
+subagent-driven build in an isolated worktree, the same machine that built `iee`. The shape: a roster of
+N named centroids (one principal); the pipeline scores each window against every member (embed once,
+cosine to each — the roadmap's "N≈free"); the **principal's** score still drives the respond/suppress
+gate, **byte-identical** to before; an N-way `SpeakerClassifier` (built earlier in `ce9`) runs in parallel
+and labels each turn with a name, for display only. Ed identifies everyone, acts on you.
+
+The load-bearing constraint was back-compat: *with only the principal enrolled, behavior is identical to
+today.* The way to guarantee that against a refactor of a verified audio path was to extract a pure
+`scoreWindow(emb, members, principalId)` helper and pin `raw = principal's cosine` with a unit test, then
+let the opus task-reviewer trace it byte-for-byte against the old `cosineSimilarity(emb, centroid)`. It held.
+
+**The story of the build was the final review catching what four green task-reviews didn't.** Removing a
+roster member needed a decision the plan hadn't fully specified: what happens when you remove *yourself*
+(the principal)? The Task-4 reviewer flagged that the UI silently promoted a random other member to
+principal; I dispatched a fix that set `principalId = null` (→ pass-through) at the UI layer, and the
+task went green. But the **opus whole-branch review** found the fix was *undone one layer down*:
+`applyRoster` in the pipeline had `principal = members.find(...) ?? members[0]`, so `setRoster` re-promoted
+`members[0]` to principal regardless — re-pointing the respond/suppress gate at *another person's voice*,
+the exact privacy-adjacent surprise the fix was meant to prevent. A latent invariant violation that would
+have merged green, reachable only by the remove-the-principal path the acceptance check wouldn't exercise.
+Fixed by extracting a pure `selectPrincipal(roster)` that returns null for a null `principalId` and never
+promotes, with four unit cases. *That* is what the integration gate exists for: per-task reviews verify a
+task; the whole-branch review verifies the seams between them, including a fix that was right in one file
+and wrong in another.
+
+A smaller lesson, twice over: a haiku fix subagent's environment rewrote `pnpm-lock.yaml` (the old pnpm
+8-vs-9 skew) into its commit — 10k lines of churn that nearly rode the merge. Caught it on the branch-delta
+scan, restored the lockfile from main. Worth a standing reminder in the per-task contract: never let a
+subagent commit the lockfile.
+
+**Content potential:** "the bug that was fixed in the UI and unfixed in the engine" — a concrete case for
+why a whole-branch review is not redundant with green per-task reviews. And the broader arc of these two
+days: every speaker-identity feature — grade-and-suppress, the grade chip, the name, the roster — converging
+on one idea, *identify before you act*, with the gate as the single decision point that each layer feeds.
+
+---
+
 ### 2026-06-22 — enrollment UX: silence during capture, a grade chip, a name, and the roster decision
 
 A run of small, user-driven polish on the speaker-identity feature, each item from the user actually
