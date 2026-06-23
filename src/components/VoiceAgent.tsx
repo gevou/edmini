@@ -213,9 +213,9 @@ export default function VoiceAgent() {
   if (!graderRef.current) graderRef.current = createUtteranceGrader();
   const gradingEnabledRef = useRef(false);
   const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
-  // An ENROLLED non-principal turn to REMEMBER (q1e): kept in Ed's context (not deleted, no response),
-  // rendered attributed, and logged as an attributed user_utterance. Set in the suppress branch.
-  const retainedTurnRef = useRef<{ speaker: string } | null>(null);
+  // Flag: the turn in flight is an ENROLLED non-principal to REMEMBER (q1e) — kept in Ed's context (not
+  // deleted, no response) and rendered standalone. Its speaker is the canonical turnSpeakerRef below.
+  const retainedTurnRef = useRef<boolean>(false);
   // Grade to attach to the next RESPONDED user turn (hy8). Set on a respond decision when enrolled,
   // consumed when that turn's transcript backfills. Null = no chip (grading off / not enrolled).
   const lastRespondGradeRef = useRef<number | null>(null);
@@ -224,8 +224,11 @@ export default function VoiceAgent() {
   if (!classifierRef.current) classifierRef.current = createSpeakerClassifier();
   // Roster held for id→name mapping in the UI (q1e). Loaded at session start.
   const rosterRef = useRef<Roster | null>(null);
-  // Attributed display name for the turn in flight; set on committed, consumed on transcript backfill.
-  const lastSpeakerRef = useRef<string | null>(null);
+  // The ONE canonical speaker for the turn in flight (q1e): principal's name when the gate responded,
+  // the roster member's name when retained, null when there's no attribution (→ "User"). Set once on
+  // committed; consumed on transcript backfill to write BOTH the ledger (user_utterance.speaker) and the
+  // UI turn from the same value — so "who said it" is recorded one way, not three.
+  const turnSpeakerRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   const lastProcessedSeqRef = useRef<number>(0);
@@ -636,28 +639,29 @@ export default function VoiceAgent() {
       if (!gradingEnabledRef.current) return;
       const itemId = serverEvent.item_id as string | undefined;
       const { decision, confidence } = graderRef.current!.end();
-      // Attribution (q1e): run the N-speaker classifier alongside the grader (display only).
+      // Attribution (q1e): the N-speaker classifier runs alongside the grader. We resolve ONE canonical
+      // speaker for the turn (recorded the same way in the ledger and the UI).
       const who = classifierRef.current!.end();
-      if (who.label !== "unknown") {
-        const member = rosterRef.current?.members.find((m) => m.id === who.label);
-        lastSpeakerRef.current = member?.name ?? member?.id ?? who.label;
-      } else {
-        lastSpeakerRef.current = "unknown";
-      }
+      const roster = rosterRef.current;
+      const principal = roster?.members.find((m) => m.id === roster.principalId);
+
       if (decision === "respond") {
+        // The gate accepted this as the principal → attribute to the principal (not the raw classifier
+        // label, which can be "unknown" near the margin). Null name → recorded/rendered as "User".
         pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
-        // Show the confidence on this responded turn only when enrolled (a real score, not pass-through).
+        turnSpeakerRef.current = principal?.name ?? null;
         lastRespondGradeRef.current = vadRef.current?.isEnrolled() ? confidence : null;
         fireResponse(() => {}, { metadata: { src: "client" } });
       } else {
         // Grader says not-the-principal. Distinguish an ENROLLED non-principal (remember + attribute,
         // don't act) from a genuinely unknown speaker (delete + heard, forgotten).
-        const member = who.label !== "unknown" ? rosterRef.current?.members.find((m) => m.id === who.label) : undefined;
-        if (member && member.id !== rosterRef.current?.principalId) {
+        const member = who.label !== "unknown" ? roster?.members.find((m) => m.id === who.label) : undefined;
+        if (member && member.id !== roster?.principalId) {
           // RETAIN: keep the item in Ed's context (in-session awareness) and do NOT respond. The
           // transcript renders attributed and is logged as an attributed user_utterance (durable memory).
           pushEvent({ kind: "info", label: `Heard ${member.name ?? member.id} (not acting)`, detail: `conf ${confidence.toFixed(2)}` });
-          retainedTurnRef.current = { speaker: member.name ?? member.id };
+          turnSpeakerRef.current = member.name ?? member.id;
+          retainedTurnRef.current = true;
         } else {
           // Best-effort delete of the auto-committed item (keep it out of context); mark the turn
           // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
@@ -798,12 +802,13 @@ export default function VoiceAgent() {
     if (type === "conversation.item.input_audio_transcription.completed") {
       // Enrolled non-principal (q1e): remember + show it, attributed, without an Ed response.
       if (retainedTurnRef.current) {
-        const { speaker } = retainedTurnRef.current;
-        retainedTurnRef.current = null;
+        retainedTurnRef.current = false;
+        const speaker = turnSpeakerRef.current ?? undefined;
+        turnSpeakerRef.current = null;
         const text = (serverEvent.transcript as string | undefined)?.trim();
         if (text) {
           logUserUtterance(text, speaker); // durable, attributed memory (feeds iee Recent-history)
-          pushEvent({ kind: "user_spoke", label: `${speaker} (heard)`, detail: text });
+          pushEvent({ kind: "user_spoke", label: `${speaker ?? "Someone"} (heard)`, detail: text });
           const newId = ++turnCounterRef.current;
           setTurns((prev) => [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now(), speaker }]);
         }
@@ -821,9 +826,9 @@ export default function VoiceAgent() {
         const text = transcript.trim();
         const grade = lastRespondGradeRef.current ?? undefined; // speaker-ID confidence for this answered turn
         lastRespondGradeRef.current = null;
-        const speaker = lastSpeakerRef.current ?? undefined; // attributed display name (q1e)
-        lastSpeakerRef.current = null;
-        logUserUtterance(text);
+        const speaker = turnSpeakerRef.current ?? undefined; // the ONE canonical speaker (q1e)
+        turnSpeakerRef.current = null;
+        logUserUtterance(text, speaker); // ledger gets the same speaker the UI does (single source)
         pushEvent({ kind: "user_spoke", label: "User transcript", detail: text });
         setTurns((prev) => {
           for (let i = prev.length - 1; i >= 0; i--) {
@@ -1034,9 +1039,9 @@ export default function VoiceAgent() {
     graderRef.current = createUtteranceGrader();
     classifierRef.current = createSpeakerClassifier();
     // Keep the roster (it persists across sessions); just reset per-turn attribution state.
-    lastSpeakerRef.current = null;
+    turnSpeakerRef.current = null;
     suppressedTurnRef.current = null;
-    retainedTurnRef.current = null;
+    retainedTurnRef.current = false;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     try { localStorage.setItem(LAST_SEEN_SEQ_KEY, String(lastProcessedSeqRef.current)); } catch { /* ignore */ }
