@@ -15,7 +15,7 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
-import { createBrowserTargetSpeakerVad, createLocalStorageEnrollmentStore, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment } from "@/lib/tsvad";
+import { createBrowserTargetSpeakerVad, createLocalStorageEnrollmentStore, createLocalStorageRosterStore, createSpeakerClassifier, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
@@ -40,6 +40,7 @@ interface Turn {
   spokenIndex?: number; // conservative spoken-so-far cursor while Ed narrates this turn (mb0)
   ts: number; // ms epoch when this turn was created (for the UI timestamp)
   grade?: number; // speaker-ID confidence on a RESPONDED turn when enrolled (hy8); undefined = no chip
+  speaker?: string; // attributed display name from the N-speaker classifier (q1e); undefined = no label
 }
 
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
@@ -212,6 +213,13 @@ export default function VoiceAgent() {
   // Grade to attach to the next RESPONDED user turn (hy8). Set on a respond decision when enrolled,
   // consumed when that turn's transcript backfills. Null = no chip (grading off / not enrolled).
   const lastRespondGradeRef = useRef<number | null>(null);
+  // N-speaker classifier (q1e): runs alongside the grader for identification-only labeling.
+  const classifierRef = useRef<SpeakerClassifier | null>(null);
+  if (!classifierRef.current) classifierRef.current = createSpeakerClassifier();
+  // Roster held for id→name mapping in the UI (q1e). Loaded at session start.
+  const rosterRef = useRef<Roster | null>(null);
+  // Attributed display name for the turn in flight; set on committed, consumed on transcript backfill.
+  const lastSpeakerRef = useRef<string | null>(null);
   const modelSpeakingFlagRef = useRef<boolean>(false);
   const ledgerChannelRef = useRef<RealtimeChannel | null>(null);
   const lastProcessedSeqRef = useRef<number>(0);
@@ -593,7 +601,10 @@ export default function VoiceAgent() {
       userSpeakingRef.current = true; // never narrate over the User
       edInitiatedPendingRef.current = false; // the User is speaking → the next turn is theirs
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
-      if (gradingEnabledRef.current) graderRef.current!.begin();
+      if (gradingEnabledRef.current) {
+        graderRef.current!.begin();
+        classifierRef.current!.begin();
+      }
     }
     if (type === "input_audio_buffer.speech_stopped") {
       userSpeakingRef.current = false;
@@ -604,6 +615,14 @@ export default function VoiceAgent() {
       if (!gradingEnabledRef.current) return;
       const itemId = serverEvent.item_id as string | undefined;
       const { decision, confidence } = graderRef.current!.end();
+      // Attribution (q1e): run the N-speaker classifier alongside the grader (display only).
+      const who = classifierRef.current!.end();
+      if (who.label !== "unknown") {
+        const member = rosterRef.current?.members.find((m) => m.id === who.label);
+        lastSpeakerRef.current = member?.name ?? member?.id ?? who.label;
+      } else {
+        lastSpeakerRef.current = "unknown";
+      }
       if (decision === "respond") {
         pushEvent({ kind: "info", label: "Grade: respond", detail: `conf ${confidence.toFixed(2)}` });
         // Show the confidence on this responded turn only when enrolled (a real score, not pass-through).
@@ -758,19 +777,21 @@ export default function VoiceAgent() {
         const text = transcript.trim();
         const grade = lastRespondGradeRef.current ?? undefined; // speaker-ID confidence for this answered turn
         lastRespondGradeRef.current = null;
+        const speaker = lastSpeakerRef.current ?? undefined; // attributed display name (q1e)
+        lastSpeakerRef.current = null;
         logUserUtterance(text);
         pushEvent({ kind: "user_spoke", label: "User transcript", detail: text });
         setTurns((prev) => {
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].userText === null) {
               return prev.map((t, idx) =>
-                idx === i ? { ...t, userText: text, grade } : t
+                idx === i ? { ...t, userText: text, grade, speaker } : t
               );
             }
           }
           // No unmatched turn — create standalone user turn
           const newId = ++turnCounterRef.current;
-          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now(), grade }];
+          return [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now(), grade, speaker }];
         });
         const edText = pendingEdTextRef.current;
         if (edText) {
@@ -839,10 +860,15 @@ export default function VoiceAgent() {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       if (gradingEnabledRef.current) {
+        // Load the roster for id→name mapping (q1e). The VAD loads it internally too; this ref is only for UI attribution.
+        try { rosterRef.current = createLocalStorageRosterStore().load(); } catch { rosterRef.current = null; }
         try {
           const vad = await createBrowserTargetSpeakerVad({ modelUrl: TSVAD_MODEL_URL });
           await vad.start(stream);                       // taps the mic; does NOT consume it
-          vad.onScore((e) => graderRef.current!.addScore(e.raw, e.level));
+          vad.onScore((e) => {
+            graderRef.current!.addScore(e.raw, e.level);
+            classifierRef.current!.addWindow(e.scores ?? [], e.level);
+          });
           vadRef.current = vad;
           pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? (enrolledName ? `enrolled as ${enrolledName}` : "enrolled") : "pass-through (enroll to gate)" });
         } catch (err) {
@@ -1139,6 +1165,15 @@ export default function VoiceAgent() {
                       >
                         <span style={{ width: 6, height: 6, borderRadius: 9999, background: gradeColor(turn.grade), display: "inline-block" }} />
                         {turn.grade.toFixed(2)}
+                      </span>
+                    )}
+                    {turn.speaker !== undefined && (
+                      <span
+                        className="text-[10px] tabular-nums"
+                        style={{ color: turn.speaker === "unknown" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.4)" }}
+                        title={`Attributed speaker: ${turn.speaker}`}
+                      >
+                        {turn.speaker}
                       </span>
                     )}
                     <span className="text-[10px] text-white/20 tabular-nums">{fmtTime(turn.ts)}</span>
