@@ -80,13 +80,6 @@ export interface GateState {
   smoothedScore: number;
 }
 
-/** Storage-agnostic persistence for an Enrollment (localStorage in the app; a Map in tests). */
-export interface EnrollmentStore {
-  load(): Enrollment | null;
-  save(e: Enrollment): void;
-  clear(): void;
-}
-
 /** One enrolled voice in the roster: a stable id, an optional display name, and its centroid. */
 export interface RosterMember {
   id: string;

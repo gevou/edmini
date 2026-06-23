@@ -32,7 +32,6 @@ export { createFbankExtractor, applyCMN, DEFAULT_FBANK_CONFIG, type FbankConfig 
 export { resampleLinear } from "./resample";
 export { rms, dbfs, isVoiced } from "./level";
 export { createOnnxCamPlusEmbedder, type OnnxEmbedderOptions } from "./embedder-onnx";
-export { createLocalStorageEnrollmentStore } from "./enrollment-store";
 export {
   createTargetSpeakerVad,
   scoreWindow,

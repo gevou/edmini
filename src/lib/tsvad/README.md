@@ -32,7 +32,7 @@ MediaStreamSource(mic) → AudioWorkletNode('tsvad-gate') → MediaStreamDestina
 | `embedder-onnx.ts` | CAM++ via onnxruntime-web (lazy import) | device |
 | `worklet/gate-source.ts` | AudioWorklet (tap + per-sample gain ramp) | device |
 | `pipeline.ts` | orchestrates the graph + scoring loop | device |
-| `enrollment-store.ts` | localStorage persistence | — |
+| `roster-store.ts` | localStorage persistence (N-speaker roster; migrates legacy enrollment) | ✅ unit |
 
 The pure core (cosine/gate/enrollment/fbank/resample) is the load-bearing tunable logic and is fully
 unit-tested. The browser layer (ONNX/worklet/pipeline) needs on-device validation.
