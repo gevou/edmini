@@ -20,6 +20,51 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — closing the speaker-identity workstream: one fact, a docs check, and a visible state
+
+The tail of the roster work, where the user's questions did the most for the design.
+
+**"why don't we have a single consistent way of persisting the person identified?"** A sharp architectural
+catch. The honest state was three treatments of one fact: the UI got a speaker on every turn, the ledger
+got one only on the retained-guest path (your *own* turns logged anonymous), and the value was the raw
+classifier label — which could read "unknown" on a turn the gate had just accepted as you. I unified it to
+a single `turnSpeakerRef` resolved once per turn (the principal's name when the gate responds — *not* the
+raw label; the member's name when retained), written to the ledger and the UI from that one value. The
+ledger is the single source; everything else derives from it — exactly the v1 "everything derivable from
+the ledger" principle the codebase already runs on. The refactor *removed* code (a whole divergence) and
+fixed two latent bugs in passing (anonymous principal turns; "unknown" leaking onto your own turns).
+
+**"have you checked the openai api documentation?"** The best two-word correction of the session. I'd
+asserted, twice, that the live OpenAI context "can't hold a speaker field" — from memory, the exact sin
+this whole arc kept punishing. So I actually pulled the OpenAI OpenAPI spec and grepped it:
+`RealtimeConversationItemMessageUser` is `id/object/type/status/role/content` — **no `name` field**, unlike
+Chat Completions' `message.name`. The claim was right, but I shouldn't have stated it unverified. With it
+confirmed, the in-session adapter is principled, not a workaround: for a retained turn we delete OpenAI's
+nameless audio item and inject our own attributed text item (`role:user`, `"Roger: …"`), rendering the
+same `turnSpeakerRef` into the one channel that can't hold it structurally. Now ledger, UI, and live model
+context all derive from one fact. (`create_response:false` keeps Ed aware-but-silent.)
+
+**"I don't see 'speaker grading active' — I only see a toggle."** The status lived in the event log, not the
+header — so "is grading actually on, and did the model load?" was invisible. Added a live header indicator
+off real VAD state: `active — George` / `listening · enroll to gate` / `unavailable · responding to all` /
+`start a session to activate`. That doubles as the on-device confirmation for `5on` (Blob hosting): if it
+says "active," the model loaded. The recurring shape of this whole workstream: the principal is the default
+partner, everyone else is *named*, and the system shows you what it's doing.
+
+**Closed the workstream.** Speaker identity went from a feedback-loop bug to: TS-VAD engine → grade-and-
+suppress → English bake-off (CAM++ zh_en) hosted on Blob → grade chip + name → identify-only roster →
+remember-and-attribute guests, in-session and durably, one fact, with a visible state. Marked the
+device-confirmed beads verified (5on, q1e, dcv, bf0, 1wm, d6z). Parked, clearly named: `hy8`'s toggle-drop
+(grading-on-when-enrolled, which also closes the beep phantom `put`), `ce9` threshold re-tune, the
+`tsvad-lab` legacy-key cleanup (`xcs`), and the voice E2E harness (`7fn`).
+
+**Content potential:** "the two-word code review" — *have you checked the docs?* — and how the best design
+moments in this arc were the user refusing to let an assertion stand. And the unification as a worked
+example of "record the fact once, derive every view," with the one channel that needs a text adapter
+proving the rule rather than breaking it.
+
+---
+
 ### 2026-06-22 — the multi-speaker roster, built iee-way, and the integration gate earning its keep
 
 Shipped the `q1e` thin slice — manual, **identify-only** multi-speaker enrollment — as a four-task,

@@ -1,8 +1,29 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `37f3ec6`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `f9fda65`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22d) — SPEAKER-IDENTITY WORKSTREAM CLOSED
+The full arc is shipped + live: TS-VAD engine → grade-and-suppress → English bake-off (CAM++ zh_en)
+hosted on Vercel Blob → grade chip + name → identify-only roster → remember-and-attribute enrolled
+non-principals (in-session + durable). 192 tests / tsc / build green.
+
+- **Attribution unified** (`913f3d9`): one canonical `turnSpeakerRef` per turn (principal name on respond,
+  member name on retain) written to the ledger (single source) + UI from one value. Fixed: anonymous
+  principal turns; "unknown" leaking onto your own turns.
+- **In-session adapter** (`2ece717`): the Realtime message item has no `name` field (verified vs the OpenAI
+  OpenAPI spec) → for a retained turn, delete the nameless audio item + inject `role:user "Roger: …"`, so
+  Ed knows who in-session too. `create_response:false` keeps it aware-but-silent.
+- **Visible grading status** (`f9fda65`): header shows `active — <name>` / `listening · enroll to gate` /
+  `unavailable · responding to all` / `start a session to activate` (real VAD state). Doubles as the 5on
+  model-load confirmation.
+- **Verified (device-confirmed, label flipped):** 5on, q1e, dcv, bf0, 1wm, d6z (+ nvb, 13y earlier).
+- **Parked / named backlog (workstream follow-ups):** `hy8` — drop the grading on/off toggle (grading ON
+  whenever enrolled; also closes the beep phantom `put`); `ce9` — re-tune classifier thresholds on device
+  (defaults work); `put` — whisper-hallucination phantom-turn gate; `xcs` — point tsvad-lab at the roster
+  store; `7fn` — voice/audio E2E harness; `txc`/`dn9` — EER polish + more speaker data; `6kl` — voice-
+  triggered enroll; `qo3` — addressivity. Manual: delete the empty orphan Blob store `edmini-models`.
 
 ## CHECKPOINT (2026-06-22c) — multi-speaker roster (q1e) shipped, identify-only
 - **`q1e` multi-speaker roster — CLOSED + needs-verification (merged `37f3ec6`).** Manual, **identify-only**
