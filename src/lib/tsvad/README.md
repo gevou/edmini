@@ -55,8 +55,6 @@ if (!vad.isEnrolled()) await vad.enroll();        // one-time, ~2s of the target
 const gated = vad.getProcessedStream();           // gated MediaStream
 ```
 
-Lab harness: **`/tsvad-lab`** — enroll, watch live score/gate meters, monitor the gated output.
-
 ### Guided enrollment (Capture v1)
 
 `ui/VoiceEnrollment.tsx` is the one-screen onboarding: talk naturally ~10s with a live level meter +
