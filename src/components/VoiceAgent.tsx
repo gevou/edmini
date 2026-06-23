@@ -187,8 +187,9 @@ export default function VoiceAgent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEnroll, setShowEnroll] = useState(false);
   const [gradingOn, setGradingOn] = useState(false);
-  // Bumped whenever rosterRef changes so roster-dependent UI re-renders.
-  const [rosterVersion, setRosterVersion] = useState(0);
+  // The roster as real state so the management UI re-renders on change (persists across sessions). The
+  // rosterRef mirror is for non-React reads in callbacks (classifier id→name); commitRoster keeps both in sync.
+  const [roster, setRosterUi] = useState<Roster>({ principalId: null, members: [] });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -212,6 +213,9 @@ export default function VoiceAgent() {
   if (!graderRef.current) graderRef.current = createUtteranceGrader();
   const gradingEnabledRef = useRef(false);
   const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
+  // An ENROLLED non-principal turn to REMEMBER (q1e): kept in Ed's context (not deleted, no response),
+  // rendered attributed, and logged as an attributed user_utterance. Set in the suppress branch.
+  const retainedTurnRef = useRef<{ speaker: string } | null>(null);
   // Grade to attach to the next RESPONDED user turn (hy8). Set on a respond decision when enrolled,
   // consumed when that turn's transcript backfills. Null = no chip (grading off / not enrolled).
   const lastRespondGradeRef = useRef<number | null>(null);
@@ -573,12 +577,27 @@ export default function VoiceAgent() {
   }, []);
 
   // Log a finalized User turn (User → edmini crossing) to the ledger (edmini-iee §4). Fire-and-forget.
-  const logUserUtterance = useCallback((text: string) => {
+  // `speaker` (q1e) attributes an enrolled non-principal turn by name, so it's remembered as theirs.
+  const logUserUtterance = useCallback((text: string, speaker?: string) => {
     if (!text.trim()) return;
     void fetch("/api/conversation/utterance", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, threadId: voiceThreadIdRef.current }),
+      body: JSON.stringify({ text, threadId: voiceThreadIdRef.current, speaker }),
     }).catch(() => {});
+  }, []);
+
+  // Persist a roster change everywhere at once: ref (for callbacks), state (for the UI), localStorage,
+  // and the live VAD (so scoring picks it up immediately if a session is active).
+  const commitRoster = useCallback((r: Roster) => {
+    rosterRef.current = r;
+    setRosterUi(r);
+    try { createLocalStorageRosterStore().save(r); } catch { /* ignore */ }
+    vadRef.current?.setRoster(r);
+  }, []);
+
+  // Load the persisted roster on mount so the management UI shows it even before a session starts.
+  useEffect(() => {
+    try { const r = createLocalStorageRosterStore().load(); rosterRef.current = r; setRosterUi(r); } catch { /* ignore */ }
   }, []);
 
   const stopProgressTicker = useCallback(() => {
@@ -631,11 +650,21 @@ export default function VoiceAgent() {
         lastRespondGradeRef.current = vadRef.current?.isEnrolled() ? confidence : null;
         fireResponse(() => {}, { metadata: { src: "client" } });
       } else {
-        pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
-        // Best-effort delete of the auto-committed item (keep it out of context); always mark the turn
-        // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
-        if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
-        suppressedTurnRef.current = { itemId: itemId ?? "", confidence };
+        // Grader says not-the-principal. Distinguish an ENROLLED non-principal (remember + attribute,
+        // don't act) from a genuinely unknown speaker (delete + heard, forgotten).
+        const member = who.label !== "unknown" ? rosterRef.current?.members.find((m) => m.id === who.label) : undefined;
+        if (member && member.id !== rosterRef.current?.principalId) {
+          // RETAIN: keep the item in Ed's context (in-session awareness) and do NOT respond. The
+          // transcript renders attributed and is logged as an attributed user_utterance (durable memory).
+          pushEvent({ kind: "info", label: `Heard ${member.name ?? member.id} (not acting)`, detail: `conf ${confidence.toFixed(2)}` });
+          retainedTurnRef.current = { speaker: member.name ?? member.id };
+        } else {
+          // Best-effort delete of the auto-committed item (keep it out of context); mark the turn
+          // suppressed so its transcript is logged as `heard`, not rendered — even on a missing item_id.
+          pushEvent({ kind: "info", label: "Grade: suppress (not you)", detail: `conf ${confidence.toFixed(2)}` });
+          if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
+          suppressedTurnRef.current = { itemId: itemId ?? "", confidence };
+        }
         lastRespondGradeRef.current = null;
       }
       return;
@@ -767,6 +796,19 @@ export default function VoiceAgent() {
 
     // User transcript — always arrives after Ed's response; backfill into most recent unmatched turn
     if (type === "conversation.item.input_audio_transcription.completed") {
+      // Enrolled non-principal (q1e): remember + show it, attributed, without an Ed response.
+      if (retainedTurnRef.current) {
+        const { speaker } = retainedTurnRef.current;
+        retainedTurnRef.current = null;
+        const text = (serverEvent.transcript as string | undefined)?.trim();
+        if (text) {
+          logUserUtterance(text, speaker); // durable, attributed memory (feeds iee Recent-history)
+          pushEvent({ kind: "user_spoke", label: `${speaker} (heard)`, detail: text });
+          const newId = ++turnCounterRef.current;
+          setTurns((prev) => [...prev, { id: newId, userText: text, edText: "", edStreaming: false, ts: Date.now(), speaker }]);
+        }
+        return;
+      }
       if (suppressedTurnRef.current) {
         const { confidence } = suppressedTurnRef.current;
         suppressedTurnRef.current = null;
@@ -868,7 +910,7 @@ export default function VoiceAgent() {
       });
       if (gradingEnabledRef.current) {
         // Load the roster for id→name mapping (q1e). The VAD loads it internally too; this ref is only for UI attribution.
-        try { rosterRef.current = createLocalStorageRosterStore().load(); } catch { rosterRef.current = null; }
+        try { const r = createLocalStorageRosterStore().load(); rosterRef.current = r; setRosterUi(r); } catch { /* keep current */ }
         try {
           const vad = await createBrowserTargetSpeakerVad({ modelUrl: TSVAD_MODEL_URL });
           await vad.start(stream);                       // taps the mic; does NOT consume it
@@ -991,9 +1033,10 @@ export default function VoiceAgent() {
     vadRef.current = null;
     graderRef.current = createUtteranceGrader();
     classifierRef.current = createSpeakerClassifier();
-    rosterRef.current = null;
+    // Keep the roster (it persists across sessions); just reset per-turn attribution state.
     lastSpeakerRef.current = null;
     suppressedTurnRef.current = null;
+    retainedTurnRef.current = null;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
     try { localStorage.setItem(LAST_SEEN_SEQ_KEY, String(lastProcessedSeqRef.current)); } catch { /* ignore */ }
@@ -1044,6 +1087,9 @@ export default function VoiceAgent() {
   }
 
   const isActive = status === "listening" || status === "speaking" || status === "connecting";
+  // Capturing a voice needs a live graded session (the VAD does the recording). Viewing/managing the
+  // roster does not, so the panel itself persists across sessions (gated only on gradingOn).
+  const canEnroll = !!vadRef.current && (status === "listening" || status === "speaking");
   const accentColor = status === "speaking" ? "#a78bfa" : status === "error" ? "#f87171" : "#f59e0b";
 
   const buttonIcon =
@@ -1071,14 +1117,10 @@ export default function VoiceAgent() {
               ...prev.members.filter((m) => m.id !== memberId),
               newMember,
             ];
-            const roster: Roster = {
+            commitRoster({
               principalId: isPrincipal ? "principal" : prev.principalId,
               members: updatedMembers,
-            };
-            try { createLocalStorageRosterStore().save(roster); } catch { /* ignore */ }
-            rosterRef.current = roster;
-            vadRef.current?.setRoster(roster);
-            setRosterVersion((v) => v + 1);
+            });
             const displayName = e.name ?? memberId;
             pushEvent({ kind: "info", label: isPrincipal
               ? (e.name ? `Voice enrolled — Ed will call you ${e.name}` : "Voice enrolled — grading now gates to you")
@@ -1137,31 +1179,30 @@ export default function VoiceAgent() {
           >
             {gradingOn ? "grading on" : "grading off"}
           </button>
-          {gradingOn && vadRef.current && status !== "idle" && (
+          {gradingOn && (
             <>
-              <button onClick={() => { setShowEnroll(true); setEnrolling(true); }} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
-                {/* rosterVersion keeps this reactive to roster changes */}
-                {rosterVersion >= 0 && (rosterRef.current?.principalId ? "add another voice" : "enroll")}
+              <button
+                onClick={() => { if (canEnroll) { setShowEnroll(true); setEnrolling(true); } }}
+                disabled={!canEnroll}
+                title={canEnroll ? undefined : "Start a session to add a voice"}
+                className={`mt-1 text-xs tracking-widest uppercase ${canEnroll ? "text-white/20 hover:text-white/40" : "text-white/10 cursor-not-allowed"}`}
+              >
+                {roster.principalId ? "add another voice" : "enroll"}
               </button>
-              {/* Roster member list — small, unobtrusive */}
-              {rosterRef.current && rosterRef.current.members.length > 0 && (
+              {/* Roster member list — persists across sessions; small, unobtrusive */}
+              {roster.members.length > 0 && (
                 <div className="mt-1 flex flex-col items-end gap-0.5">
-                  {rosterRef.current.members.map((m) => (
+                  {roster.members.map((m) => (
                     <div key={m.id} className="flex items-center gap-1">
                       <span className="text-[10px] text-white/25 tracking-wide">
-                        {m.name ?? m.id}{m.id === rosterRef.current?.principalId ? " (you)" : ""}
+                        {m.name ?? m.id}{m.id === roster.principalId ? " (you)" : ""}
                       </span>
                       <button
                         title={`Remove ${m.name ?? m.id}`}
                         onClick={() => {
-                          const prev2 = rosterRef.current ?? { principalId: null, members: [] };
-                          const remaining = prev2.members.filter((x) => x.id !== m.id);
-                          const newPrincipalId = remaining.find((x) => x.id === prev2.principalId)?.id ?? null;
-                          const updated: Roster = { principalId: newPrincipalId, members: remaining };
-                          try { createLocalStorageRosterStore().save(updated); } catch { /* ignore */ }
-                          rosterRef.current = updated;
-                          vadRef.current?.setRoster(updated);
-                          setRosterVersion((v) => v + 1);
+                          const remaining = roster.members.filter((x) => x.id !== m.id);
+                          const newPrincipalId = remaining.find((x) => x.id === roster.principalId)?.id ?? null;
+                          commitRoster({ principalId: newPrincipalId, members: remaining });
                         }}
                         className="text-[10px] text-white/15 hover:text-white/40 leading-none"
                         style={{ lineHeight: 1, padding: "1px 2px" }}

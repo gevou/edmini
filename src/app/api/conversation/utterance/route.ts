@@ -6,7 +6,9 @@
  * record (feeds the dumb "Recent history" block) and creates the message nodes the graph will use.
  * Service-role write, fire-and-forget from the client (mirrors /api/voice-output).
  *
- * POST body: { text: string, threadId?: string | null }
+ * POST body: { text: string, threadId?: string | null, speaker?: string | null }
+ * `speaker` (q1e) attributes the turn to an enrolled roster member when it wasn't the principal — so an
+ * enrolled non-principal's words are remembered with their name (Ed identifies them, doesn't act on them).
  */
 import { ledgerFromEnv } from "@/lib/ledger-supabase";
 
@@ -14,15 +16,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  let body: { text?: string; threadId?: string | null };
+  let body: { text?: string; threadId?: string | null; speaker?: string | null };
   try {
-    body = (await request.json()) as { text?: string; threadId?: string | null };
+    body = (await request.json()) as { text?: string; threadId?: string | null; speaker?: string | null };
   } catch {
     return Response.json({ error: "invalid JSON" }, { status: 400 });
   }
 
   const text = body.text?.trim();
   if (!text) return Response.json({ error: "text required" }, { status: 400 });
+  const speaker = typeof body.speaker === "string" && body.speaker.trim() ? body.speaker.trim() : undefined;
 
   try {
     const ledger = ledgerFromEnv({ serviceRole: true });
@@ -31,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
       threadId: body.threadId ?? null,
       source: "user",
       kind: "user_utterance",
-      payload: { text },
+      payload: speaker ? { text, speaker } : { text },
     });
     return Response.json({ ok: true });
   } catch (err) {
