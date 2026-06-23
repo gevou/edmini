@@ -103,5 +103,4 @@ export interface Roster {
 export interface RosterStore {
   load(): Roster;
   save(r: Roster): void;
-  clear(): void;
 }

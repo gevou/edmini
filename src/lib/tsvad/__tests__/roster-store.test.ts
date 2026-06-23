@@ -45,20 +45,4 @@ describe("createLocalStorageRosterStore", () => {
     expect(out.members[0].name).toBe("George");
     expect(out.members[0].enrollment.dim).toBe(3);
   });
-
-  it("clear() drops both the roster and the legacy key, so nothing re-migrates on reload", () => {
-    // A user who enrolled under the old single-enrollment code has BOTH keys: the migrated roster
-    // and the still-present legacy key (load() reads it but never deletes it). A clear that misses
-    // the legacy key would silently re-migrate it on the next load — the exact drift edmini-xcs fixes.
-    localStorage.setItem("tsvad_enrollment", JSON.stringify({
-      centroid: [1, 0, 0], windowCount: 30, dim: 3, enrolledAt: 1, name: "George",
-    }));
-    const store = createLocalStorageRosterStore();
-    store.save({ principalId: "principal", members: [{ id: "principal", name: "George", enrollment: enr("George") }] });
-
-    store.clear();
-
-    expect(localStorage.getItem("tsvad_enrollment")).toBeNull();
-    expect(createLocalStorageRosterStore().load()).toEqual({ principalId: null, members: [] });
-  });
 });
