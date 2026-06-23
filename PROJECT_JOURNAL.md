@@ -20,6 +20,59 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — the phantom "Bye-bye", and the field that didn't exist
+
+`edmini-put`: a macOS volume beep had leaked into the mic, whisper transcribed it as "Bye-bye", and that
+phantom user turn fired a real Ed response (recapping finished research) plus a fake `user_utterance` in
+the ledger — a non-speech artifact masquerading as the user, in a system whose whole point is an
+accountable record. The enrolled case was already covered (the beep scores below the speaker centroid →
+suppressed, via `hy8`); this was the not-enrolled pass-through gap.
+
+**The issue told me how to fix it, and the issue was wrong.** Its mitigation (2) said "whisper returns
+`no_speech_prob` / `avg_logprob`; drop turns below threshold." That's the exact shape of the sin this
+codebase keeps catching — asserting an external API's surface from memory. Those *are* real Whisper
+fields — in the **batch** transcription API. The **Realtime** API exposes neither. So I checked instead
+of coding: the GA Realtime transcription event carries per-token **`logprobs`**, opt-in via a
+session-level `include: ["item.input_audio_transcription.logprobs"]` — and that's the *only* confidence
+signal it gives. Had I trusted the issue, I'd have written a gate keyed on fields that never arrive. (The
+recurring lesson, third entry running: *verify the external surface, don't remember it.*)
+
+**A second thing I'd assumed turned out already-true.** I thought the not-enrolled phantom *response* came
+from the server auto-responding on commit (`create_response` defaulting true), which would mean the
+confidence signal — arriving only at `transcription.completed`, *after* the response — was useless for
+gating it. But reading the session wiring: since `hy8`, the client always sends `grading:true`, so
+`create_response:false` is *always* set and the **client drives every response**. That changed the fix
+from "impossible without a latency hit on the server path" to "clean": for a not-enrolled turn, *defer*
+the client's `fireResponse` at commit (a `passthroughPendingRef`), and when the transcript + logprobs
+land, either drop it as `heard` (no response, no ledger turn) if it's non-speech, or fire the response
+we held. The enrolled path is untouched — the grader already gates it at commit with zero added latency.
+
+The detector itself ([`transcript-confidence.ts`](src/lib/voice/transcript-confidence.ts)) is a pure,
+tested helper combining three signals: empty transcript, a small denylist of classic whisper
+hallucination artifacts (the YouTube-caption residue — "thanks for watching", "please subscribe",
+"bye-bye", "♪"), and a mean-logprob confidence floor. Two tiers: outright artifacts drop regardless of
+confidence; genuinely-ambiguous short tokens ("okay", "thank you", "bye") drop only when logprobs confirm
+low confidence — so a real, confident "thank you" survives. It degrades gracefully if logprobs ever go
+missing (empty + artifacts still caught).
+
+**The honest limitation, written into the close:** whisper hallucinations are sometimes *deceptively
+high-confidence*, so a logprob floor can't catch all of them — this **reduces, not eliminates** phantom
+turns when not enrolled. Which is the real point: enrolling (speaker grading) is the robust fix, because
+it rejects a beep on *acoustic* grounds regardless of what whisper later claims the beep "said." This is
+the fallback for the unenrolled, not a substitute for enrolling.
+
+215 tests / tsc / build green; app mounts clean in preview. Commit
+[`7311556`](https://github.com/gevou/edmini/commit/7311556). Closed `needs-verification` — the live
+beep-into-mic flow is the on-device sign-off.
+
+**Content potential:** "the field that didn't exist" — debugging against a documented-but-wrong premise,
+and how `no_speech_prob` being a *batch*-only field (absent from Realtime) is a perfect small case for
+"check the spec for *this* endpoint, not your memory of the product." And the deeper one: confidence-
+gating text is a band-aid; the acoustic gate (is this even the enrolled human?) is the cure — non-speech
+rejection wants to live upstream of transcription, not downstream of it.
+
+---
+
 ### 2026-06-22 — the clear button that didn't clear (a migration that never let go)
 
 Small follow-up (`edmini-xcs`), one clean bug. The tsvad-lab's "Clear enrollment" did

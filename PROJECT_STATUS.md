@@ -1,8 +1,24 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `0a6bf3a`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `7311556`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22g) — put: non-speech phantom-turn rejection (DONE, needs-verification)
+`edmini-put` closed (`7311556`). Closes the not-enrolled pass-through gap where a non-speech beep →
+whisper "Bye-bye" → phantom Ed response + fake ledger turn (enrolled case already handled by hy8).
+- **Verified, not assumed:** GA Realtime exposes per-token transcription `logprobs` (session-level
+  `include: ["item.input_audio_transcription.logprobs"]`), NOT batch Whisper `no_speech_prob`/`avg_logprob`
+  (the issue's premise was wrong). New pure helper `src/lib/voice/transcript-confidence.ts`
+  (`isLikelyNonSpeech`: empty + classic whisper artifacts + mean-logprob floor; degrades w/o logprobs),
+  11 tests.
+- **Mechanism:** since hy8 the session always runs `grading:true` → `create_response:false` → client
+  drives all responses. So a not-enrolled turn now DEFERS its response at commit (`passthroughPendingRef`)
+  and at `transcription.completed` drops it as `heard` (no response, no `user_utterance`) if non-speech,
+  else fires the deferred response. Enrolled path untouched (grader gates at commit, no added latency).
+- **Limitation:** whisper hallucinations are sometimes high-confidence → REDUCES, not eliminates, phantom
+  turns when NOT enrolled. Enrolling (acoustic gate) is the robust fix; thresholds device-tunable (ce9).
+- 215 tests/tsc/build green; app mounts clean in preview. **needs-verification:** live beep→mic flow.
 
 ## CHECKPOINT (2026-06-22f) — xcs: tsvad-lab legacy-key drift (DONE, needs-verification)
 `edmini-xcs` closed (`0a6bf3a`). The lab's "Clear enrollment" removed only the legacy
