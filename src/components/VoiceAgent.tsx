@@ -15,7 +15,7 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
-import { createBrowserTargetSpeakerVad, createLocalStorageEnrollmentStore, createLocalStorageRosterStore, createSpeakerClassifier, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
+import { createBrowserTargetSpeakerVad, createLocalStorageRosterStore, createSpeakerClassifier, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
 
@@ -187,6 +187,8 @@ export default function VoiceAgent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEnroll, setShowEnroll] = useState(false);
   const [gradingOn, setGradingOn] = useState(false);
+  // Bumped whenever rosterRef changes so roster-dependent UI re-renders.
+  const [rosterVersion, setRosterVersion] = useState(0);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -826,9 +828,14 @@ export default function VoiceAgent() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey && apiKey !== "__server__") headers["x-openai-key"] = apiKey;
 
-      // The enrolled name (if any) → so Ed's system prompt can address the user by name (hy8).
+      // The principal's name (if any) → so Ed's system prompt can address the user by name (hy8).
+      // Read from the roster store (single source of truth); legacy enrollment store no longer used.
       let enrolledName: string | undefined;
-      try { enrolledName = createLocalStorageEnrollmentStore().load()?.name; } catch { /* ignore */ }
+      try {
+        const roster = createLocalStorageRosterStore().load();
+        const principal = roster.members.find((m) => m.id === roster.principalId);
+        enrolledName = principal?.name;
+      } catch { /* ignore */ }
 
       const sessionRes = await fetch("/api/session", {
         method: "POST", headers,
@@ -983,6 +990,9 @@ export default function VoiceAgent() {
     void vadRef.current?.stop();
     vadRef.current = null;
     graderRef.current = createUtteranceGrader();
+    classifierRef.current = createSpeakerClassifier();
+    rosterRef.current = null;
+    lastSpeakerRef.current = null;
     suppressedTurnRef.current = null;
     ledgerChannelRef.current?.unsubscribe();
     ledgerChannelRef.current = null;
@@ -1052,9 +1062,27 @@ export default function VoiceAgent() {
           onComplete={(e: Enrollment) => {
             setEnrolling(false);
             setShowEnroll(false);
-            try { createLocalStorageEnrollmentStore().save(e); } catch { /* ignore */ }
-            vadRef.current?.setEnrollment(e);
-            pushEvent({ kind: "info", label: e.name ? `Voice enrolled — Ed will call you ${e.name}` : "Voice enrolled — grading now gates to you" });
+            // Build updated roster: first enroll → principal; subsequent → new member.
+            const prev = rosterRef.current ?? { principalId: null, members: [] };
+            const isPrincipal = prev.principalId === null;
+            const memberId = isPrincipal ? "principal" : `member_${Date.now()}`;
+            const newMember = { id: memberId, name: e.name, enrollment: e };
+            const updatedMembers = [
+              ...prev.members.filter((m) => m.id !== memberId),
+              newMember,
+            ];
+            const roster: Roster = {
+              principalId: isPrincipal ? "principal" : prev.principalId,
+              members: updatedMembers,
+            };
+            try { createLocalStorageRosterStore().save(roster); } catch { /* ignore */ }
+            rosterRef.current = roster;
+            vadRef.current?.setRoster(roster);
+            setRosterVersion((v) => v + 1);
+            const displayName = e.name ?? memberId;
+            pushEvent({ kind: "info", label: isPrincipal
+              ? (e.name ? `Voice enrolled — Ed will call you ${e.name}` : "Voice enrolled — grading now gates to you")
+              : `Added voice: ${displayName}` });
           }}
           onCancel={() => { setEnrolling(false); setShowEnroll(false); }}
         />
@@ -1110,9 +1138,41 @@ export default function VoiceAgent() {
             {gradingOn ? "grading on" : "grading off"}
           </button>
           {gradingOn && vadRef.current && status !== "idle" && (
-            <button onClick={() => { setShowEnroll(true); setEnrolling(true); }} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
-              enroll
-            </button>
+            <>
+              <button onClick={() => { setShowEnroll(true); setEnrolling(true); }} className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40">
+                {/* rosterVersion keeps this reactive to roster changes */}
+                {rosterVersion >= 0 && (rosterRef.current?.principalId ? "add another voice" : "enroll")}
+              </button>
+              {/* Roster member list — small, unobtrusive */}
+              {rosterRef.current && rosterRef.current.members.length > 0 && (
+                <div className="mt-1 flex flex-col items-end gap-0.5">
+                  {rosterRef.current.members.map((m) => (
+                    <div key={m.id} className="flex items-center gap-1">
+                      <span className="text-[10px] text-white/25 tracking-wide">
+                        {m.name ?? m.id}{m.id === rosterRef.current?.principalId ? " (you)" : ""}
+                      </span>
+                      <button
+                        title={`Remove ${m.name ?? m.id}`}
+                        onClick={() => {
+                          const prev2 = rosterRef.current ?? { principalId: null, members: [] };
+                          const remaining = prev2.members.filter((x) => x.id !== m.id);
+                          const newPrincipalId = remaining.find((x) => x.id === prev2.principalId)?.id ?? remaining[0]?.id ?? null;
+                          const updated: Roster = { principalId: newPrincipalId, members: remaining };
+                          try { createLocalStorageRosterStore().save(updated); } catch { /* ignore */ }
+                          rosterRef.current = updated;
+                          vadRef.current?.setRoster(updated);
+                          setRosterVersion((v) => v + 1);
+                        }}
+                        className="text-[10px] text-white/15 hover:text-white/40 leading-none"
+                        style={{ lineHeight: 1, padding: "1px 2px" }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </header>
