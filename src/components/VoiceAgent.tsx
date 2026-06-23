@@ -46,7 +46,6 @@ interface Turn {
 type AgentStatus = "idle" | "connecting" | "listening" | "speaking" | "error";
 
 const STORAGE_KEY = "ed_openai_key";
-const GRADING_KEY = "ed_grading_enabled";
 const LAST_SEEN_SEQ_KEY = "edmini.lastSeenSeq";
 // Surfaced in the header + logged on session start so it's unambiguous which bundle is running.
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "unknown";
@@ -186,9 +185,8 @@ export default function VoiceAgent() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEnroll, setShowEnroll] = useState(false);
-  const [gradingOn, setGradingOn] = useState(false);
-  // The LIVE grading state this session (the toggle above is only the setting). "active" = model loaded;
-  // "unavailable" = model failed → fail-open (responding to all); null = not grading this session.
+  // The LIVE grading state this session. "active" = model loaded (gates if enrolled, else pass-through);
+  // "unavailable" = model failed → fail-open (responding to all); null = no live session.
   const [gradingState, setGradingState] = useState<"active" | "unavailable" | null>(null);
   // The roster as real state so the management UI re-renders on change (persists across sessions). The
   // rosterRef mirror is for non-React reads in callbacks (classifier id→name); commitRoster keeps both in sync.
@@ -214,7 +212,6 @@ export default function VoiceAgent() {
   const vadRef = useRef<TargetSpeakerVad | null>(null);
   const graderRef = useRef<UtteranceGrader | null>(null);
   if (!graderRef.current) graderRef.current = createUtteranceGrader();
-  const gradingEnabledRef = useRef(false);
   const suppressedTurnRef = useRef<{ itemId: string; confidence: number } | null>(null);
   // Flag: the turn in flight is an ENROLLED non-principal to REMEMBER (q1e) — kept in Ed's context (not
   // deleted, no response) and rendered standalone. Its speaker is the canonical turnSpeakerRef below.
@@ -484,7 +481,6 @@ export default function VoiceAgent() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    setGradingOn(localStorage.getItem(GRADING_KEY) === "1");
     if (stored) {
       setApiKey(stored);
       return;
@@ -628,10 +624,8 @@ export default function VoiceAgent() {
       userSpeakingRef.current = true; // never narrate over the User
       edInitiatedPendingRef.current = false; // the User is speaking → the next turn is theirs
       pushEvent({ kind: "user_spoke", label: "User started speaking" });
-      if (gradingEnabledRef.current) {
-        graderRef.current!.begin();
-        classifierRef.current!.begin();
-      }
+      graderRef.current!.begin();
+      classifierRef.current!.begin();
     }
     if (type === "input_audio_buffer.speech_stopped") {
       userSpeakingRef.current = false;
@@ -639,7 +633,6 @@ export default function VoiceAgent() {
       tryDrain(); // channel may now be free for a queued update
     }
     if (type === "input_audio_buffer.committed") {
-      if (!gradingEnabledRef.current) return;
       const itemId = serverEvent.item_id as string | undefined;
       const { decision, confidence } = graderRef.current!.end();
       // Attribution (q1e): the N-speaker classifier runs alongside the grader. We resolve ONE canonical
@@ -871,7 +864,6 @@ export default function VoiceAgent() {
   const startSession = useCallback(async () => {
     setErrorMsg(null);
     setStatus("connecting");
-    gradingEnabledRef.current = typeof localStorage !== "undefined" && localStorage.getItem(GRADING_KEY) === "1";
 
     const newSessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -900,7 +892,7 @@ export default function VoiceAgent() {
 
       const sessionRes = await fetch("/api/session", {
         method: "POST", headers,
-        body: JSON.stringify({ grading: gradingEnabledRef.current, userName: enrolledName }),
+        body: JSON.stringify({ grading: true, userName: enrolledName }),
       });
       if (!sessionRes.ok) {
         const err = await sessionRes.json();
@@ -927,7 +919,9 @@ export default function VoiceAgent() {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      if (gradingEnabledRef.current) {
+      {
+        // Speaker ID is always on now (hy8): the VAD always runs; enrollment decides whether it gates
+        // (enrolled → gate to you; not enrolled → pass-through). The on/off toggle is gone.
         // Load the roster for id→name mapping (q1e). The VAD loads it internally too; this ref is only for UI attribution.
         try { const r = createLocalStorageRosterStore().load(); rosterRef.current = r; setRosterUi(r); } catch { /* keep current */ }
         try {
@@ -1109,8 +1103,8 @@ export default function VoiceAgent() {
   }
 
   const isActive = status === "listening" || status === "speaking" || status === "connecting";
-  // Capturing a voice needs a live graded session (the VAD does the recording). Viewing/managing the
-  // roster does not, so the panel itself persists across sessions (gated only on gradingOn).
+  // Capturing a voice needs a live session (the VAD does the recording). Viewing/managing the roster
+  // does not, so the speaker-id panel always shows; only the enroll button needs an active session.
   const canEnroll = !!vadRef.current && (status === "listening" || status === "speaking");
   const accentColor = status === "speaking" ? "#a78bfa" : status === "error" ? "#f87171" : "#f59e0b";
 
@@ -1193,30 +1187,25 @@ export default function VoiceAgent() {
           >
             key
           </button>}
-          <button
-            onClick={() => { const next = !gradingOn; setGradingOn(next); localStorage.setItem(GRADING_KEY, next ? "1" : "0"); }}
-            title="Only respond to my voice (takes effect next session)"
-            className="mt-1 text-white/20 text-xs tracking-widest uppercase hover:text-white/40 transition-colors"
-            style={{ minHeight: 36, padding: "0 4px" }}
+          <span
+            className="mt-1 text-white/20 text-xs tracking-widest uppercase"
+            title="Ed acts only on your enrolled voice; other enrolled people are identified, not obeyed"
           >
-            {gradingOn ? "grading on" : "grading off"}
-          </button>
-          {/* Live grading status (the toggle above is only the setting) */}
-          {gradingOn && (
-            <span
-              className="text-[10px] tracking-wide normal-case"
-              title="Live speaker-grading status this session"
-              style={{ color: gradingState === "unavailable" ? "#f87171" : gradingState === "active" && roster.principalId ? "#4ade80" : "rgba(255,255,255,0.30)" }}
-            >
-              {gradingState === "unavailable"
-                ? "unavailable · responding to all"
-                : gradingState === "active"
-                  ? (roster.principalId ? `active — ${roster.members.find((m) => m.id === roster.principalId)?.name ?? "you"}` : "listening · enroll to gate")
-                  : "start a session to activate"}
-            </span>
-          )}
-          {gradingOn && (
-            <>
+            speaker id
+          </span>
+          {/* Live grading status — speaker ID is always on; enrollment decides whether it gates */}
+          <span
+            className="text-[10px] tracking-wide normal-case"
+            title="Live speaker-grading status this session"
+            style={{ color: gradingState === "unavailable" ? "#f87171" : gradingState === "active" && roster.principalId ? "#4ade80" : "rgba(255,255,255,0.30)" }}
+          >
+            {gradingState === "unavailable"
+              ? "unavailable · responding to all"
+              : gradingState === "active"
+                ? (roster.principalId ? `active — ${roster.members.find((m) => m.id === roster.principalId)?.name ?? "you"}` : "listening · enroll to gate")
+                : "start a session to activate"}
+          </span>
+          <>
               <button
                 onClick={() => { if (canEnroll) { setShowEnroll(true); setEnrolling(true); } }}
                 disabled={!canEnroll}
@@ -1250,7 +1239,6 @@ export default function VoiceAgent() {
                 </div>
               )}
             </>
-          )}
         </div>
       </header>
 
