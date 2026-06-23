@@ -13,8 +13,30 @@ widen English speaker separation? Quantify, don't guess.
 
 Offline harness `pnpm tsvad:validate <onnx> samples` — reuses the REAL fbank + cosine pipeline through
 onnxruntime-node (validates the actual code, not a reimplementation). Reports each model's true I/O
-contract, same- vs diff-speaker mean cosine, separation margin, a crude EER + suggested threshold, and
-embed latency.
+contract, same- vs diff-speaker mean cosine, separation margin, two EERs (see below), and embed latency.
+
+### EER methodology (hardened in `edmini-txc`)
+
+The original column was a **crude all-pairs pooled EER**: sweep one threshold over *every* same-speaker
+vs different-speaker clip-pair cosine. That is not how the live gate decides — and on this tiny set it
+went non-discriminating (0% for every model; see Results). The validator now reports two numbers:
+
+- **Verification EER** (primary) — mirrors the live gate (`speaker-classifier.ts`). For each speaker,
+  hold one clip out as the test utterance and build that speaker's centroid from the **remaining** clips
+  via the **real enrollment recipe** (`enrollment.ts`: per-window L2-normalize → mean → L2-normalize) —
+  leave-one-out, so there's no leakage and every clip is used on small sets. **Genuine** = held-out clip
+  vs its own centroid; **impostor** = that clip vs every *other* speaker's full centroid (a stranger
+  scored against the enrolled roster). Sweep the threshold to the equal-error point (`FAR(t) = impostor
+  ≥ t`, `FRR(t) = genuine < t`, accept iff `score ≥ t` — matching the classifier's `top1 ≥ absThreshold`).
+- **Bootstrap 95% CI** on that EER — resample the genuine and impostor score arrays independently with
+  replacement (1000 iters, seeded `mulberry32(42)` so the reported CI is reproducible), recompute the
+  EER each time, report the 2.5/97.5 percentiles. A small-sample point estimate shouldn't read as more
+  precise than it is.
+- **All-pairs EER** (kept, clearly labeled *pooled, indicative*) — the old number, for continuity only.
+
+The math lives in a pure, unit-tested module (`src/lib/tsvad/eer.ts`, `eer.test.ts` — 11 cases:
+separable → 0, identical distributions → 0.5, partial-overlap bracketing, empty-input guard, seeded
+reproducibility). The validator imports it, so the metric is testable rather than buried in the script.
 
 **Sample set:** 2 English speakers (George, Roger) × 3 clips each, recorded by the user, converted to
 16 kHz mono 16-bit PCM WAV (`<speaker>_<n>.wav`). Clip durations: George 3.4 / 3.9 / 9.0 s, Roger
@@ -70,6 +92,11 @@ just point the embedder `modelUrl` at the new file. Suggested gate/grader thresh
 
 - **Tiny sample set: 2 speakers, 3 clips each.** This is **directional, not definitive.** The margins
   and the 0.37 threshold are indicative; confirm on device with more speakers before locking thresholds.
+  The verification EER + bootstrap CI (added in `edmini-txc`, above) is built precisely so that a
+  larger set (see `edmini-dn9`) produces a *defensible* EER with honest error bars — re-run
+  `pnpm tsvad:validate public/models/campplus_zh_en.onnx <samples>` once more speakers are gathered and
+  record the verification EER + CI here. The all-pairs 0% in the table above is exactly the artifact this
+  replaces.
 - All ERES2Net candidates were `zh-cn`-only (no commercially-safe English/bilingual ERES2Net exists), so
   this bake-off cannot say whether the *architecture* would help English given English data — only that,
   with the models we can legally ship, **CAM++ zh_en wins decisively.**

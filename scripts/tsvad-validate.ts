@@ -6,8 +6,11 @@
  * Reuses the REAL feature pipeline (src/lib/tsvad/fbank + cosine) and runs it through onnxruntime-node,
  * so it validates the actual code, not a reimplementation. It reports:
  *   1. the model's true I/O contract (names + embedding dim) — set these in createOnnxCamPlusEmbedder
- *   2. speaker separation: mean cosine for same-speaker vs different-speaker pairs (+ a crude EER)
- *   3. per-window embed latency (node, wasm/native — indicative, not a phone number)
+ *   2. speaker separation: mean cosine for same-speaker vs different-speaker pairs (+ the separation margin)
+ *   3. two EERs: a VERIFICATION EER that mirrors the live gate (enroll-clips → centroid, test-clips →
+ *      cosine vs centroids; genuine = vs-own, impostor = vs-other) with a bootstrap 95% CI, plus the old
+ *      ALL-PAIRS pooled EER for continuity (clearly labeled — it is not how the gate actually decides)
+ *   4. per-window embed latency (node, wasm/native — indicative, not a phone number)
  *
  * With no args it uses scripts/fixtures/synthetic_campplus.onnx and synthetic "voices" (distinct
  * spectra) — this proves the plumbing in CI where the real weights are network-blocked. Point it at the
@@ -20,6 +23,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createFbankExtractor, applyCMN } from "../src/lib/tsvad/fbank";
 import { cosineSimilarity } from "../src/lib/tsvad/cosine";
+import { createEnrollmentAccumulator } from "../src/lib/tsvad/enrollment";
+import { equalErrorRate, bootstrapEerCi, mulberry32 } from "../src/lib/tsvad/eer";
 
 const MODEL = process.argv[2] ?? "scripts/fixtures/synthetic_campplus.onnx";
 const WAV_DIR = process.argv[3];
@@ -75,6 +80,41 @@ function meanCosine(pairs: [Float32Array, Float32Array][]): number {
   return pairs.reduce((a, [x, y]) => a + cosineSimilarity(x, y), 0) / Math.max(1, pairs.length);
 }
 
+/** Build a speaker centroid from clip embeddings via the REAL enrollment recipe (per-window L2 → mean → L2). */
+function centroid(embeddings: Float32Array[], dim: number): Float32Array {
+  const acc = createEnrollmentAccumulator(dim);
+  for (const e of embeddings) acc.add(e);
+  return acc.build(1)!.centroid;
+}
+
+/**
+ * Verification scores the way the live gate decides: for each speaker, hold out one clip as the test
+ * utterance and build that speaker's centroid from the REMAINING clips (leave-one-out — no leakage, and
+ * it uses every clip on small sets). Genuine = held-out clip vs its own LOO centroid. Impostor = that
+ * same clip vs every OTHER speaker's full centroid (the false-accept scenario: a stranger scored against
+ * an enrolled roster). Speakers with <2 clips contribute no genuine trials (no held-out centroid).
+ */
+function verificationScores(bySpeaker: Map<string, Float32Array[]>, dim: number) {
+  const ids = [...bySpeaker.keys()];
+  const fullCentroid = new Map(ids.map((id) => [id, centroid(bySpeaker.get(id)!, dim)]));
+  const genuine: number[] = [];
+  const impostor: number[] = [];
+  for (const id of ids) {
+    const clips = bySpeaker.get(id)!;
+    for (let i = 0; i < clips.length; i++) {
+      if (clips.length >= 2) {
+        const enroll = clips.filter((_, j) => j !== i);
+        genuine.push(cosineSimilarity(clips[i], centroid(enroll, dim)));
+      }
+      for (const other of ids) {
+        if (other === id) continue;
+        impostor.push(cosineSimilarity(clips[i], fullCentroid.get(other)!));
+      }
+    }
+  }
+  return { genuine, impostor };
+}
+
 async function main() {
   console.log(`\n● Model: ${MODEL}`);
   const session = await ort.InferenceSession.create(MODEL);
@@ -119,7 +159,8 @@ async function main() {
   const diffMean = meanCosine(diff);
   const margin = sameMean - diffMean;
 
-  // Crude EER: sweep a threshold, track where max(false-accept, false-reject) is smallest.
+  // ALL-PAIRS pooled EER (kept for continuity; NOT how the gate decides): sweep a threshold over every
+  // same-pair vs diff-pair cosine, track where max(false-accept, false-reject) is smallest.
   let bestThr = 0;
   let bestEer = 1;
   for (let thr = -1; thr <= 1; thr += 0.01) {
@@ -131,11 +172,27 @@ async function main() {
     }
   }
 
+  // VERIFICATION EER — mirrors the live gate (enroll → centroid, test clip → cosine vs centroids), with
+  // a bootstrap 95% CI so a small-sample number doesn't read as more precise than it is.
+  const { genuine, impostor } = verificationScores(bySpeaker, dim);
+  const haveVerif = genuine.length > 0 && impostor.length > 0;
+  const verif = haveVerif ? equalErrorRate(genuine, impostor) : null;
+  const ci = haveVerif ? bootstrapEerCi(genuine, impostor, { iters: 1000, rng: mulberry32(42) }) : null;
+
   const avgLat = latencies.reduce((a, b) => a + b, 0) / latencies.length;
   console.log(`  same-speaker cosine:  ${sameMean.toFixed(3)}`);
   console.log(`  diff-speaker cosine:  ${diffMean.toFixed(3)}`);
   console.log(`  separation margin:    ${margin.toFixed(3)}`);
-  console.log(`  ~EER:                 ${(bestEer * 100).toFixed(1)}%  (suggested threshold ${bestThr.toFixed(2)})`);
+  if (verif && ci) {
+    console.log(
+      `  verification EER:     ${(verif.eer * 100).toFixed(1)}%  ` +
+        `(95% CI ${(ci.lo * 100).toFixed(1)}–${(ci.hi * 100).toFixed(1)}%, ${ci.iters} boot; ` +
+        `thr ${verif.threshold.toFixed(2)}; ${verif.genuineCount} genuine / ${verif.impostorCount} impostor)`,
+    );
+  } else {
+    console.log(`  verification EER:     n/a (need ≥2 clips for ≥1 speaker + ≥2 speakers)`);
+  }
+  console.log(`  all-pairs EER:        ${(bestEer * 100).toFixed(1)}%  (pooled, indicative; thr ${bestThr.toFixed(2)})`);
   console.log(`  embed latency (node): ${avgLat.toFixed(1)} ms/window avg\n`);
 
   const ok = dim > 0 && margin > 0.05;
