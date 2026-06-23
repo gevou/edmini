@@ -806,7 +806,18 @@ export default function VoiceAgent() {
         const speaker = turnSpeakerRef.current ?? undefined;
         turnSpeakerRef.current = null;
         const text = (serverEvent.transcript as string | undefined)?.trim();
+        const itemId = serverEvent.item_id as string | undefined;
         if (text) {
+          // In-session attribution adapter: a Realtime message item has no speaker field (verified against
+          // the OpenAI OpenAPI spec — items are id/object/type/status/role/content only). So replace the
+          // nameless audio item OpenAI authored with an attributed text item, rendering the same
+          // turnSpeakerRef into text. No response is fired (grading mode → create_response:false), so Ed
+          // becomes AWARE of who said what without acting on it.
+          if (itemId) dcRef.current?.send(JSON.stringify({ type: "conversation.item.delete", item_id: itemId }));
+          dcRef.current?.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: `${speaker ?? "Someone"}: ${text}` }] },
+          }));
           logUserUtterance(text, speaker); // durable, attributed memory (feeds iee Recent-history)
           pushEvent({ kind: "user_spoke", label: `${speaker ?? "Someone"} (heard)`, detail: text });
           const newId = ++turnCounterRef.current;
