@@ -20,6 +20,62 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-23 — "who is 'you'?" — speaker names, and deleting the harness that taught us them
+
+A UX session that turned into a small cleanup. The trigger, verbatim:
+
+> **"it's a bit weird when the UI says 'active: you' who is 'you' it should say either the name or fallback
+> something like ('user1'). we should add UI to update your name"**
+
+Right — the header fell back to `active — you` for an unnamed principal, which is both vague and oddly
+intimate for a label. Two asks: a better fallback, and a way to set/rename. Picked **"Speaker N"** (1-based
+roster position) as the fallback and **inline-rename any voice** (not just the principal) as the editor.
+Built a pure, tested `rosterMemberLabel(member, roster)` so the fallback logic lives in one place instead
+of scattered `?? "you"` / `?? m.id`, and wired the header + roster list through it; rename commits via the
+existing `commitRoster` (ref + state + localStorage + live VAD), clearing the field reverting to `Speaker N`.
+
+The clarifying exchange did the real work. Mid-design the user added:
+
+> **"Eventually we will add login to edmini so the name can be pulled from google SSO or something (and
+> associate a signature with a user)."**
+
+That *validated* keeping this tiny. A name has **layered sources**: the manual roster name is just the
+first one; once login lands ([`edmini-epn`](.) filed as the roadmap marker), an SSO identity layers above
+it, and the enrolled **voice centroid becomes the "signature" bound to an account** rather than living in
+client `localStorage`. So nothing here is throwaway — it's the manual seam SSO will later override. The
+right move was YAGNI: no account plumbing now. (Filing that bead is also where I learned an interrupted
+`bd create` can double-commit — I'd accidentally interrupted it, re-filed, and ended up with two `Login/SSO`
+beads to dedupe.)
+
+Then the scope-trimming, verbatim:
+
+> **"No need to keep the (you) label. Also remove completely the development harness path it's not useful anymore."**
+
+So: dropped the `(you)` marker entirely, and **deleted `/tsvad-lab`** — the standalone TS-VAD lab page that
+had been the proving ground for the whole speaker stack (enroll, watch the gate meters, monitor gated
+output). A small reckoning: that harness is what `edmini-xcs` had just fixed (its "Clear enrollment"
+button), and what I'd been asking the user to device-test. Removing the page **superseded** that pending
+sign-off — `xcs`'s `roster-store.clear()` hardening stays (unit-tested), but the page-half and its
+verification are now moot. One deletion retired a whole open question.
+
+Verification without a mic: the naming UI needs an enrolled roster, which normally needs a live session.
+But the roster loads from `localStorage` on mount — so I seeded `tsvad_roster` (George + an unnamed member)
++ a dummy API key, reloaded the preview, and watched the list render **"George"** and **"Speaker 2"** (no
+`(you)`), then drove the real React handlers to rename Speaker 2 → "Roger" and confirmed it persisted to
+`localStorage`. Client-side state makes for cheap, mic-free verification. The only un-checked bit is the
+header's `active — <name>` string, which only renders during a live session (`mfl` left
+`needs-verification` for that one glance).
+
+`411188c` (remove harness) + `b144152` (naming). 220 tests / tsc / build green; `/tsvad-lab` gone from the
+build manifest. `9d9` + `xcs` verified, `mfl` needs the in-session header glance.
+
+**Content potential:** "who is 'you'?" — how a one-word UI label ("you") exposed a missing identity model,
+and the clean answer that a name has *sources* (manual now, SSO later, voiceprint as the account key) rather
+than a single value. And the quieter lesson: deleting the dev harness didn't just remove code, it *closed a
+verification debt* — sometimes the fix for "is this fixed?" is "that surface no longer exists."
+
+---
+
 ### 2026-06-22 — the phantom "Bye-bye", and the field that didn't exist
 
 `edmini-put`: a macOS volume beep had leaked into the mic, whisper transcribed it as "Bye-bye", and that

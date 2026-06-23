@@ -1,8 +1,21 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `7311556`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `b144152`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-23) — speaker naming + harness removal
+- **`edmini-mfl` (DONE, needs-verification):** header no longer says `active — you`. Pure tested helper
+  `src/lib/tsvad/roster-labels.ts` `rosterMemberLabel` → name or `Speaker N` (1-based roster position).
+  Roster list: inline-rename ANY voice (click name → edit → Enter saves via commitRoster; clear → reverts
+  to Speaker N). Dropped the `(you)` marker. Browser-verified (seeded roster, no mic); only the in-session
+  header string is un-checked. `b144152`.
+- **`edmini-9d9` (DONE, verified):** deleted the `/tsvad-lab` dev harness (`src/app/tsvad-lab/`) + README
+  pointer. `411188c`. Kept `roster-store.clear()`+test and `VoiceEnrollment` (main app uses it).
+- **`edmini-xcs` → VERIFIED:** page-half superseded by the harness removal (device sign-off moot); the
+  roster-store.clear() hardening remains (unit-tested).
+- **`edmini-epn` (P4, open):** roadmap marker — login/SSO derives identity + binds the voice centroid
+  ("signature") to an account; manual roster name is the first source SSO later overrides.
 
 ## CHECKPOINT (2026-06-22g) — put: non-speech phantom-turn rejection (DONE, VERIFIED)
 **Device-verified 2026-06-23:** user cleared enrollment → volume beep → no phantom turn/response (bug did
