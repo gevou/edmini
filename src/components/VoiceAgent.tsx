@@ -1156,7 +1156,7 @@ export default function VoiceAgent() {
                         onClick={() => {
                           const prev2 = rosterRef.current ?? { principalId: null, members: [] };
                           const remaining = prev2.members.filter((x) => x.id !== m.id);
-                          const newPrincipalId = remaining.find((x) => x.id === prev2.principalId)?.id ?? remaining[0]?.id ?? null;
+                          const newPrincipalId = remaining.find((x) => x.id === prev2.principalId)?.id ?? null;
                           const updated: Roster = { principalId: newPrincipalId, members: remaining };
                           try { createLocalStorageRosterStore().save(updated); } catch { /* ignore */ }
                           rosterRef.current = updated;
