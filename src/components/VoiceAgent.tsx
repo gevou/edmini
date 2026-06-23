@@ -15,7 +15,7 @@ import {
   type Priority,
 } from "@/lib/voice/narration-queue";
 import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
-import { createBrowserTargetSpeakerVad, createLocalStorageRosterStore, createSpeakerClassifier, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
+import { createBrowserTargetSpeakerVad, createLocalStorageRosterStore, createSpeakerClassifier, rosterMemberLabel, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { isLikelyNonSpeech, type TranscriptLogprob } from "@/lib/voice/transcript-confidence";
 import { VoiceEnrollment } from "@/lib/tsvad/ui/VoiceEnrollment";
@@ -186,6 +186,9 @@ export default function VoiceAgent() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEnroll, setShowEnroll] = useState(false);
+  // Inline rename of a roster voice (edmini-mfl): which member is being edited + the draft name.
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
   // The LIVE grading state this session. "active" = model loaded (gates if enrolled, else pass-through);
   // "unavailable" = model failed → fail-open (responding to all); null = no live session.
   const [gradingState, setGradingState] = useState<"active" | "unavailable" | null>(null);
@@ -601,6 +604,15 @@ export default function VoiceAgent() {
     try { createLocalStorageRosterStore().save(r); } catch { /* ignore */ }
     vadRef.current?.setRoster(r);
   }, []);
+
+  // Commit an inline rename (edmini-mfl): set the member's name (blank → cleared, reverts to "Speaker N").
+  const saveRename = useCallback((id: string) => {
+    setEditingMemberId(null);
+    const r = rosterRef.current;
+    if (!r) return;
+    const trimmed = draftName.trim();
+    commitRoster({ ...r, members: r.members.map((m) => (m.id === id ? { ...m, name: trimmed || undefined } : m)) });
+  }, [draftName, commitRoster]);
 
   // Load the persisted roster on mount so the management UI shows it even before a session starts.
   useEffect(() => {
@@ -1233,7 +1245,10 @@ export default function VoiceAgent() {
             {gradingState === "unavailable"
               ? "unavailable · responding to all"
               : gradingState === "active"
-                ? (roster.principalId ? `active — ${roster.members.find((m) => m.id === roster.principalId)?.name ?? "you"}` : "listening · enroll to gate")
+                ? (() => {
+                    const p = roster.members.find((m) => m.id === roster.principalId);
+                    return p ? `active — ${rosterMemberLabel(p, roster)}` : "listening · enroll to gate";
+                  })()
                 : "start a session to activate"}
           </span>
           <>
@@ -1250,11 +1265,32 @@ export default function VoiceAgent() {
                 <div className="mt-1 flex flex-col items-end gap-0.5">
                   {roster.members.map((m) => (
                     <div key={m.id} className="flex items-center gap-1">
-                      <span className="text-[10px] text-white/25 tracking-wide">
-                        {m.name ?? m.id}{m.id === roster.principalId ? " (you)" : ""}
-                      </span>
+                      {editingMemberId === m.id ? (
+                        <input
+                          autoFocus
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRename(m.id);
+                            else if (e.key === "Escape") setEditingMemberId(null);
+                          }}
+                          onBlur={() => saveRename(m.id)}
+                          placeholder={rosterMemberLabel(m, roster)}
+                          maxLength={40}
+                          className="text-[10px] text-white/70 tracking-wide bg-transparent outline-none w-24 text-right"
+                          style={{ borderBottom: "1px solid rgba(255,255,255,0.25)" }}
+                        />
+                      ) : (
+                        <button
+                          title="Rename"
+                          onClick={() => { setEditingMemberId(m.id); setDraftName(m.name ?? ""); }}
+                          className="text-[10px] text-white/25 tracking-wide hover:text-white/45"
+                        >
+                          {rosterMemberLabel(m, roster)}
+                        </button>
+                      )}
                       <button
-                        title={`Remove ${m.name ?? m.id}`}
+                        title={`Remove ${rosterMemberLabel(m, roster)}`}
                         onClick={() => {
                           const remaining = roster.members.filter((x) => x.id !== m.id);
                           const newPrincipalId = remaining.find((x) => x.id === roster.principalId)?.id ?? null;
