@@ -187,6 +187,9 @@ export default function VoiceAgent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEnroll, setShowEnroll] = useState(false);
   const [gradingOn, setGradingOn] = useState(false);
+  // The LIVE grading state this session (the toggle above is only the setting). "active" = model loaded;
+  // "unavailable" = model failed → fail-open (responding to all); null = not grading this session.
+  const [gradingState, setGradingState] = useState<"active" | "unavailable" | null>(null);
   // The roster as real state so the management UI re-renders on change (persists across sessions). The
   // rosterRef mirror is for non-React reads in callbacks (classifier id→name); commitRoster keeps both in sync.
   const [roster, setRosterUi] = useState<Roster>({ principalId: null, members: [] });
@@ -935,9 +938,11 @@ export default function VoiceAgent() {
             classifierRef.current!.addWindow(e.scores ?? [], e.level);
           });
           vadRef.current = vad;
+          setGradingState("active");
           pushEvent({ kind: "info", label: "Speaker grading active", detail: vad.isEnrolled() ? (enrolledName ? `enrolled as ${enrolledName}` : "enrolled") : "pass-through (enroll to gate)" });
         } catch (err) {
           vadRef.current = null;                          // fail open — no scores → grader always responds
+          setGradingState("unavailable");
           pushEvent({ kind: "error", label: "Speaker grading unavailable (responding to all)", detail: err instanceof Error ? err.message : String(err) });
         }
       }
@@ -1077,6 +1082,7 @@ export default function VoiceAgent() {
     if (audioElRef.current) audioElRef.current.srcObject = null;
     modelSpeakingFlagRef.current = false;
     voiceThreadIdRef.current = null;
+    setGradingState(null);
     if (sessionIdRef.current) {
       pushEvent({
         kind: "session_ended",
@@ -1195,6 +1201,20 @@ export default function VoiceAgent() {
           >
             {gradingOn ? "grading on" : "grading off"}
           </button>
+          {/* Live grading status (the toggle above is only the setting) */}
+          {gradingOn && (
+            <span
+              className="text-[10px] tracking-wide normal-case"
+              title="Live speaker-grading status this session"
+              style={{ color: gradingState === "unavailable" ? "#f87171" : gradingState === "active" && roster.principalId ? "#4ade80" : "rgba(255,255,255,0.30)" }}
+            >
+              {gradingState === "unavailable"
+                ? "unavailable · responding to all"
+                : gradingState === "active"
+                  ? (roster.principalId ? `active — ${roster.members.find((m) => m.id === roster.principalId)?.name ?? "you"}` : "listening · enroll to gate")
+                  : "start a session to activate"}
+            </span>
+          )}
           {gradingOn && (
             <>
               <button
