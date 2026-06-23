@@ -86,3 +86,22 @@ export interface EnrollmentStore {
   save(e: Enrollment): void;
   clear(): void;
 }
+
+/** One enrolled voice in the roster: a stable id, an optional display name, and its centroid. */
+export interface RosterMember {
+  id: string;
+  name?: string;
+  enrollment: Enrollment;
+}
+
+/** The set of enrolled voices. `principalId` names the member whose turns Ed acts on (identify-only). */
+export interface Roster {
+  principalId: string | null;
+  members: RosterMember[];
+}
+
+export interface RosterStore {
+  load(): Roster;
+  save(r: Roster): void;
+  clear(): void;
+}

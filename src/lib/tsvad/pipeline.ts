@@ -23,11 +23,13 @@ import { GATE_WORKLET_SOURCE } from "./worklet/gate-source";
 import {
   DEFAULT_GATE_CONFIG,
   type Enrollment,
-  type EnrollmentStore,
   type GateConfig,
   type GateState,
+  type Roster,
+  type RosterMember,
   type SpeakerEmbedder,
 } from "./types";
+import type { CandidateScore } from "./speaker-classifier";
 
 export interface ScoreEvent extends GateState {
   /** Raw (un-smoothed) cosine score for this window, or null when not enrolled (pass-through). */
@@ -35,6 +37,8 @@ export interface ScoreEvent extends GateState {
   enrolled: boolean;
   /** Input RMS level [0,1] for this window — drives the UI level meter. */
   level: number;
+  /** Per-member cosines for this window (present when enrolled). Principal's score drives the gate. */
+  scores?: CandidateScore[];
 }
 
 /** Live enrollment progress for the guided-capture UI. */
@@ -51,7 +55,16 @@ export interface EnrollProgress {
 
 export interface TargetSpeakerVadOptions {
   embedder: SpeakerEmbedder;
-  store?: EnrollmentStore;
+  /**
+   * Initial roster state. If omitted, the pipeline starts unenrolled.
+   * The caller (createBrowserTargetSpeakerVad) loads from the RosterStore and passes it here.
+   */
+  roster?: Roster;
+  /**
+   * Called when enrollment finishes with the built Enrollment. The caller can persist it.
+   * Replaces the old opts.store?.save() call, keeping the pure pipeline free of store coupling.
+   */
+  onEnrolled?: (e: Enrollment) => void;
   gateConfig?: GateConfig;
   /** Scoring window length (ms). Longer = steadier embeddings, more latency. */
   windowMs?: number;
@@ -77,14 +90,47 @@ export interface TargetSpeakerVad {
   getProcessedStream(): MediaStream | null;
   /** Capture audio and build+save the target centroid. Requires start() first. */
   enroll(opts?: EnrollOptions): Promise<Enrollment>;
-  /** Set the active target (e.g. from store.load()), or null to pass-through. */
+  /** Set the active target (e.g. from store.load()), or null to pass-through. Back-compat. */
   setEnrollment(e: Enrollment | null): void;
+  /** Replace the full roster. The principal (r.principalId) drives the gate. */
+  setRoster(r: Roster): void;
   isEnrolled(): boolean;
   /** Subscribe to per-window score/gate events for meters/debug UI. Returns an unsubscribe fn. */
   onScore(cb: (e: ScoreEvent) => void): () => void;
   /** Tear down the graph and release the embedder. */
   stop(): Promise<void>;
 }
+
+// ---------------------------------------------------------------------------
+// Pure helpers — exported for unit tests (no ONNX / browser APIs).
+// ---------------------------------------------------------------------------
+
+/**
+ * The principal member for a roster, or null when there is no principal (→ pass-through).
+ * A non-null principalId that isn't found also yields null — never silently promote another member.
+ */
+export function selectPrincipal(r: Roster): RosterMember | null {
+  if (r.principalId === null) return null;
+  return r.members.find((m) => m.id === r.principalId) ?? null;
+}
+
+/**
+ * Score `emb` against each roster member's centroid. The principal's cosine becomes `raw` and
+ * drives the gate decision (unchanged from the single-enrollment path). When members is empty,
+ * returns raw=null so the caller can skip the gate.
+ */
+export function scoreWindow(
+  emb: Float32Array,
+  members: { id: string; enrollment: { centroid: Float32Array } }[],
+  principalId: string | null,
+): { scores: CandidateScore[]; raw: number | null } {
+  if (!members.length) return { scores: [], raw: null };
+  const scores = members.map((m) => ({ id: m.id, cosine: cosineSimilarity(emb, m.enrollment.centroid) }));
+  const pid = principalId ?? members[0].id;
+  return { scores, raw: scores.find((s) => s.id === pid)?.cosine ?? null };
+}
+
+// ---------------------------------------------------------------------------
 
 export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpeakerVad {
   const { embedder } = opts;
@@ -93,7 +139,18 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
   const hopMs = opts.hopMs ?? 160;
 
   const gate: Gate = createGate(gateConfig);
-  let enrollment: Enrollment | null = opts.store?.load() ?? null;
+
+  // Roster state — replaces the single `enrollment` field.
+  let members: RosterMember[] = [];
+  let principal: RosterMember | null = null;
+
+  function applyRoster(r: Roster) {
+    members = r.members;
+    principal = selectPrincipal(r);
+  }
+
+  // Initialise from the caller-supplied roster (if any).
+  applyRoster(opts.roster ?? { principalId: null, members: [] });
 
   let ctx: AudioContext | null = null;
   let node: AudioWorkletNode | null = null;
@@ -146,7 +203,7 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
     const level = rms(windowCtx);
 
     // Pass-through when there's no target and we're not enrolling.
-    if (!enrollment && !enrolling) {
+    if (!principal && !enrolling) {
       setGain(1);
       emit({ raw: null, enrolled: false, level, ...gate.state(), gain: 1, open: true });
       return;
@@ -172,14 +229,15 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
         setGain(1); // hear yourself while enrolling
         if (enrolling.acc.count >= enrolling.target) finishEnroll();
         emit({ raw: null, enrolled: false, level, ...gate.state(), gain: 1, open: true });
-      } else if (enrollment) {
-        const raw = cosineSimilarity(emb, enrollment.centroid);
+      } else if (principal) {
+        const { scores, raw } = scoreWindow(emb, members, principal.id);
+        if (raw === null) return; // shouldn't happen when principal is set, guard anyway
         const now = performance.now();
         const dt = lastScoreTs ? now - lastScoreTs : hopMs;
         lastScoreTs = now;
         const state = gate.push(raw, dt);
         setGain(state.gain);
-        emit({ raw, enrolled: true, level, ...state });
+        emit({ raw, enrolled: true, level, scores, ...state });
       }
     } catch {
       // A bad window shouldn't wedge the loop; just skip it.
@@ -198,8 +256,16 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
       e.reject(new Error("enrollment: not enough usable windows"));
       return;
     }
-    enrollment = built;
-    opts.store?.save(built);
+    // Update the roster: upsert the principal member.
+    applyRoster({
+      principalId: "principal",
+      members: [
+        // keep any non-principal members already in the roster
+        ...members.filter((m) => m.id !== "principal"),
+        { id: "principal", name: built.name, enrollment: built },
+      ],
+    });
+    opts.onEnrolled?.(built);
     gate.reset();
     e.resolve(built);
   }
@@ -222,7 +288,7 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
 
       source = ctx.createMediaStreamSource(mic);
       node = new AudioWorkletNode(ctx, "tsvad-gate", {
-        processorOptions: { hopSize, rampPerSample: 0.0006, initialGain: enrollment ? 0 : 1 },
+        processorOptions: { hopSize, rampPerSample: 0.0006, initialGain: principal ? 0 : 1 },
       });
       node.port.onmessage = (ev: MessageEvent) => {
         const m = ev.data as { type: string; samples?: Float32Array };
@@ -265,13 +331,23 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
     },
 
     setEnrollment(e) {
-      enrollment = e;
+      applyRoster(
+        e
+          ? { principalId: "principal", members: [{ id: "principal", name: e.name, enrollment: e }] }
+          : { principalId: null, members: [] },
+      );
       gate.reset();
-      setGain(e ? 0 : 1);
+      setGain(principal ? 0 : 1);
+    },
+
+    setRoster(r) {
+      applyRoster(r);
+      gate.reset();
+      setGain(principal ? 0 : 1);
     },
 
     isEnrolled() {
-      return enrollment !== null;
+      return principal !== null;
     },
 
     onScore(cb) {
