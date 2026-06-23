@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scoreWindow } from "../pipeline";
+import { scoreWindow, selectPrincipal } from "../pipeline";
 
 const m = (id: string, c: number[]) => ({ id, enrollment: { centroid: Float32Array.from(c) } });
 
@@ -18,5 +18,33 @@ describe("scoreWindow", () => {
   });
   it("no members → raw null, empty scores", () => {
     expect(scoreWindow(Float32Array.from([1]), [], null)).toEqual({ scores: [], raw: null });
+  });
+});
+
+const member = (id: string) => ({
+  id,
+  name: id,
+  enrollment: { centroid: Float32Array.from([1, 0]), windowCount: 1, dim: 2, enrolledAt: 0 },
+});
+
+describe("selectPrincipal", () => {
+  it("principalId: null with members present → returns null (no silent promotion)", () => {
+    const r = { principalId: null, members: [member("a"), member("b")] };
+    expect(selectPrincipal(r)).toBeNull();
+  });
+
+  it("principalId present and found → returns that member", () => {
+    const m = member("p");
+    const r = { principalId: "p", members: [member("a"), m] };
+    expect(selectPrincipal(r)).toBe(m);
+  });
+
+  it("principalId present but NOT in members → returns null (never promote another)", () => {
+    const r = { principalId: "missing", members: [member("a"), member("b")] };
+    expect(selectPrincipal(r)).toBeNull();
+  });
+
+  it("empty roster → null", () => {
+    expect(selectPrincipal({ principalId: null, members: [] })).toBeNull();
   });
 });

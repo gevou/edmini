@@ -102,8 +102,17 @@ export interface TargetSpeakerVad {
 }
 
 // ---------------------------------------------------------------------------
-// Pure scoring helper — exported for unit tests (no ONNX / browser APIs).
+// Pure helpers — exported for unit tests (no ONNX / browser APIs).
 // ---------------------------------------------------------------------------
+
+/**
+ * The principal member for a roster, or null when there is no principal (→ pass-through).
+ * A non-null principalId that isn't found also yields null — never silently promote another member.
+ */
+export function selectPrincipal(r: Roster): RosterMember | null {
+  if (r.principalId === null) return null;
+  return r.members.find((m) => m.id === r.principalId) ?? null;
+}
 
 /**
  * Score `emb` against each roster member's centroid. The principal's cosine becomes `raw` and
@@ -137,7 +146,7 @@ export function createTargetSpeakerVad(opts: TargetSpeakerVadOptions): TargetSpe
 
   function applyRoster(r: Roster) {
     members = r.members;
-    principal = r.members.find((m) => m.id === r.principalId) ?? r.members[0] ?? null;
+    principal = selectPrincipal(r);
   }
 
   // Initialise from the caller-supplied roster (if any).
