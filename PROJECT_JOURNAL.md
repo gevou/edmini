@@ -20,6 +20,35 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-22 — the clear button that didn't clear (a migration that never let go)
+
+Small follow-up (`edmini-xcs`), one clean bug. The tsvad-lab's "Clear enrollment" did
+`localStorage.removeItem("tsvad_enrollment")` — the *legacy* single-enrollment key. But since `q1e` the
+VAD persists through the **roster store** (`tsvad_roster`), so Clear was deleting a key the live path no
+longer writes, leaving the actual roster intact: reload → `rosterStore.load()` → principal re-enrolled.
+The button looked like it worked (the in-memory `setEnrollment(null)` took effect immediately) and silently
+didn't survive a refresh. Classic drift from a store migration that left two writers in the codebase.
+
+Fix is the obvious half — point the lab at the same `RosterStore` the VAD uses and call `store.clear()`.
+The *interesting* half was one layer down: the legacy→roster **migration in `load()` reads the legacy key
+but never deletes it.** So a user who'd enrolled under the old code has *both* keys, and clearing only the
+roster key would let the next `load()` re-migrate the legacy enrollment right back. A `clear()` that doesn't
+clear everything it migrates *from* isn't a clear. So `roster-store.clear()` now drops the legacy key too —
+fixing it at the source for every caller (the lab and VoiceAgent), not just papering over it in the page.
+TDD made the re-migration trap concrete: set both keys, `clear()`, assert *both* gone and a fresh `load()`
+is empty — watched it fail on the surviving legacy key first.
+
+204 tests / tsc / build green; page renders clean in preview (no console errors). Commit
+[`0a6bf3a`](https://github.com/gevou/edmini/commit/0a6bf3a). Closed `needs-verification` — the live
+clear-with-a-real-mic-then-reload flow is the on-device sign-off.
+
+**Content potential:** "a migration that never let go" — the subtle failure mode where a read-only data
+migration (read old, write new, *don't delete old*) turns a later `clear()`/reset into a no-op, because the
+stale source quietly resurrects on reload. The fix isn't at the call site; it's making the store own the
+full lifecycle of every key it touches.
+
+---
+
 ### 2026-06-22 — making the bake-off's EER mean something (and admitting it didn't)
 
 A small, surgical follow-up to the closed speaker-identity workstream, but one worth recording because it's

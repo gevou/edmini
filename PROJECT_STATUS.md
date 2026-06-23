@@ -1,8 +1,16 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `511b039`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `0a6bf3a`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-22f) — xcs: tsvad-lab legacy-key drift (DONE, needs-verification)
+`edmini-xcs` closed (`0a6bf3a`). The lab's "Clear enrollment" removed only the legacy
+`tsvad_enrollment` key, but the VAD persists to the roster store (`tsvad_roster`) — so Clear left the
+roster behind and reload re-enrolled. Lab now uses the same `RosterStore` and calls `store.clear()`.
+Hardened `roster-store.ts` `clear()` to drop the legacy key too (`load()` migrates from it but never
+deleted it → a cleared roster would re-migrate on next load). TDD test added. 204 tests/tsc/build green;
+page renders clean in preview. **needs-verification:** live clear-button flow needs mic+model on device.
 
 ## CHECKPOINT (2026-06-22e) — txc: defensible verification EER + bootstrap CI (DONE, verified)
 `edmini-txc` closed + verified (`511b039`). The bake-off validator no longer reports only the crude
