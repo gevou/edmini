@@ -20,6 +20,61 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-23 — naming Edmini (Ed = Edgar), and "you told me" vs "I know your voice"
+
+The session where the assistant got its name back. It started as a one-liner — should the model know it's
+"edmini"? — and unfolded into identity, branding, and a subtle truth about how Edmini *knows* you.
+
+**The name.** The prompt said *"You are Ed."* The user: **"ed is hard to distinguish that's why I like
+edmini."** A real voice-UX reason — "Ed" is two phonemes and a common human name, terrible as an address
+marker. First pass I made it *"Edmini (also answers to Ed)"*; the user pushed back immediately: **"I'm not
+sure if I want that. the point of Edmini is to be less ambiguous."** Exactly right — keeping "Ed" as an
+alias re-imports the very ambiguity (and the false-addressivity risk: someone says "Ed," Edmini perks up).
+So Edmini now owns *only* "Edmini," never a short form. Then the sweep: every user/model-facing "Ed" →
+"Edmini" — two header logos, the dashboard, the browser title, the **PWA manifest** (the installed-app
+label, almost missed), "Edmini is speaking," an aria-label, and — importantly — the history-context label
+in `session/route.ts` that tags Edmini's *own past turns*, so the model sees itself consistently.
+
+**The wordmark.** Then the lore: **"edmini is word play for Ed mini"**, and later, **"Edgar was the name of
+the sentient computer in the movie Electric Dreams (there's probably copyright involved)."** So "Ed" is
+Edgar. We styled the logo to surface the pun — a shared `<Wordmark>` component: **Ed** in the live accent,
+**mini** smaller and dimmed, same baseline. Plus a hover tooltip, *'Ed·mini — "Ed" is short for Edgar'* —
+etymology only; I deliberately left the film out pending the user's copyright call (a bare title nod is
+likely nominative fair use, but it's their brand to decide). And the user killed the subtitle: **"can you
+remove the 'Voice agent'. 99.9% that's not what this will identify as."** Right again — the vision doc calls
+this a voice-first *supervisor that coordinates executors*, not a voice agent. Gone.
+
+**English lock.** A small fix for a real annoyance: **"I keep saying 'hey' and the transcription shows
+korean."** Whisper's auto language-detection misfires on short/noisy audio (and feeds the non-English
+hallucinations). Set `transcription.language = "en"` — verified it's a real field on the GA Realtime config
+before touching it. Temporary English-only.
+
+**The deepest one — "I know you because you told me."** The user re-tested after fixing their roster:
+**"edmini knows its name. that said, it still claimed that it knew my name because I mentioned it earlier,
+not because of my voiceprint."** The logs settled it, and the answer was a split: the voiceprint identity
+*was* working — seq 254 Edmini greeted *"Hey George"* unprompted, and the user's turns logged `spk=George`,
+which only happens when the enrolled principal is named. So `userName=George` was injected from the
+voiceprint. But when *asked* "how do you know my name?", the model said *"from our recent chat… that's how
+you introduced yourself"* (seq 258) — because the **history block also carries past self-introductions**, and
+nothing told the model to credit the voice. The model can't tell "I know because I recognize the voiceprint"
+from "I know because it's in my context" — to it, the name is just *there*. So the fix is narration: the
+prompt now says it recognizes the person by their enrolled VOICE, not because they told it, and to say so
+when asked. The mechanism was right; the model's story about itself was wrong.
+
+Shipped across many small commits; `5v7` (name) verified on device, `71w`/`oej` verified in browser,
+`h8b`/`l0f` await a live session. Tickets filed: `bz6` (non-speech on the principal path), `h8b` (English),
+`l0f` (voiceprint narration), and `qo3` sharpened with the **private/public mode** framing (private = respond
+to all principal speech; public = only when explicitly addressed).
+
+**Content potential:** two themes worth a piece. (1) "naming is a voice-UX decision" — "Ed" failed not on
+taste but on *distinguishability and addressivity*; the wordplay (Ed→Edgar→Electric Dreams) is the fun on
+top. (2) "I know you because you told me" — an assistant whose identity is voiceprint-gated but which
+*narrates* itself as remembering a conversation, because an LLM can't introspect the provenance of a fact in
+its context. The gap between how a system *works* and the story it *tells about itself* is its own design
+surface.
+
+---
+
 ### 2026-06-23 — "it couldn't identify me" — and what a *principal* actually is
 
 A debugging session that started as "edmini ignored me" and ended as a missing concept in the UI. The

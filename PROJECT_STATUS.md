@@ -1,12 +1,32 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `728709b`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `5698520`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
 
+## CHECKPOINT (2026-06-23c) — Edmini identity: naming, wordmark, voiceprint, English lock
+- **Renamed Ed → Edmini everywhere.** Persona owns only "Edmini" (never "Ed"; "Ed" is short for Edgar) —
+  `edmini-5v7` **VERIFIED on device** (Edmini self-identifies; seq 258 "My name is Edmini"). UI/copy
+  `edmini-71w` (verified): both header logos + dashboard, browser/PWA title + manifest, "Edmini is speaking",
+  enroll labels, aria-label, and the history-context label the model reads. Reason: "Ed" too short to
+  distinguish in voice / ambiguous.
+- **Ed|mini wordmark** (`edmini-oej`, verified): shared `<Wordmark>` component — "Ed" in the live accent,
+  "mini" smaller (0.62em) + dimmed; hover tooltip 'Ed·mini — "Ed" is short for Edgar' (the Electric Dreams
+  movie ref left out pending a copyright call). Dropped the "voice agent" subtitle (it's a supervisor, not a
+  voice agent).
+- **`edmini-h8b` (DONE, needs-verification):** locked transcription to English (`transcription.language="en"`)
+  — auto-detect was misfiring ("hey"→Korean) + feeding non-English hallucinations. (A Japanese "はい" still
+  appeared at seq 253 — confirm on a FRESH post-deploy session.)
+- **`edmini-l0f` (DONE, needs-verification):** voiceprint identity WORKS (principal named → userName injected
+  → Edmini greets the principal unprompted + attributes turns `spk=George`), but when asked "how do you know
+  me?" the model credited the conversation, not the voice (the history block carries past self-intros).
+  Strengthened the userLine to attribute identity to the enrolled voiceprint + say "I recognize your voice"
+  when asked. `5698520`.
+- **`edmini-qo3` (sharpened, P3):** private mode = respond to all principal speech (today); public mode =
+  respond ONLY when explicitly addressed by the principal (wake-name). Canonical framing for the addressivity axis.
+
 ## CHECKPOINT (2026-06-23b) — principal management (ncw) + identity debugging
-- **`edmini-5v7` (DONE, needs-verification):** agent persona renamed to **Edmini** (answers to "Ed", says
-  "Edmini" when asked) in session/route.ts — "Ed" was too short to distinguish in voice. `728709b`.
+- **`edmini-5v7`:** VERIFIED; reworded to own only "Edmini" (dropped "answers to Ed") — see 23c.
 - **`edmini-bz6` (P3, open):** non-speech reaches the principal/respond path — a random noise hallucinated
   "thanks for watching" (Korean) → became a principal turn Ed answered + a fake ledger turn. put's
   non-speech gate only covers the not-enrolled path; add it to the enrolled/graded path as defense-in-depth
