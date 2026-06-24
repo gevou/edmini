@@ -1,8 +1,24 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `05d9f09`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `a2ee20d`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-23b) — principal management (ncw) + identity debugging
+- **`edmini-ncw` (DONE, needs-verification):** per-row ★/☆ toggle in the roster list to mark/switch the
+  **principal** (the one voice Ed gates to + responds to). ★ = current principal; click ☆ to promote
+  (`commitRoster({...roster, principalId: id})`) → re-tunes the live gate + makes that voice's name the
+  session identity. Exactly one principal. Browser-verified; live in-session effect (Ed identifies the new
+  principal) needs device check. `a2ee20d`.
+- **Root cause found (user "couldn't identify me"):** their roster had a NAMELESS principal (first enroll,
+  name skipped) while "George" was a non-principal guest (enrolled via "add another voice"). Identity =
+  `principal?.name` → empty. The principal could only be set at first enroll until now. `ncw` is the fix
+  (promote George); a clean re-enroll also works.
+- **Identity attribution is unreliable** with overlapping/duplicate voiceprints (a nameless principal that's
+  likely also George's voice + a named George + Chad) — the N-way classifier mislabels (a whisper
+  hallucination got tagged "George"). Roster cleanup + `ncw` + `ce9`/`dn9` (thresholds/data) is the path.
+- Debugging note: `user_utterance` ledger events carry NO confidence field (only `heard` does) — don't read
+  `conf=null` on a user turn as "not enrolled".
 
 ## CHECKPOINT (2026-06-23) — speaker naming + harness removal + dead-code cleanup
 - **Dead-code cleanup (follow-ups to 9d9):** dropped now-unused `RosterStore.clear()` (only caller was the

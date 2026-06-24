@@ -20,6 +20,60 @@ produced ever silently disappears.
 
 ## Journal Entries
 
+### 2026-06-23 — "it couldn't identify me" — and what a *principal* actually is
+
+A debugging session that started as "edmini ignored me" and ended as a missing concept in the UI. The
+user: **"I started edmini and it wasn't able to identify me!"** — even though, they added, *"I could see my
+name in the enrolled names."*
+
+My first read was wrong, and instructively so. I leaned on `conf=null` in the ledger as evidence of a
+not-enrolled pass-through turn — but `user_utterance` events simply **don't carry a confidence field** (only
+`heard` does). A red herring I'd have caught by checking the payload shape instead of pattern-matching. The
+user's "I can see my name" then blew up my "empty roster" theory entirely. Back to evidence: I had them dump
+`localStorage.tsvad_roster`, and there it was:
+
+```
+principalId: "principal"
+members: [ {id:"principal"}            ← no name  ← the one Ed identifies by
+          {id:"member_…054093", name:"George"}
+          {id:"member_…137618", name:"Chad"} ]
+```
+
+The **principal had no name.** "George" was a *separate, non-principal* member. Ed derives identity from
+`members.find(m => m.id === principalId)?.name` — which pointed at the nameless principal → empty → *"I don't
+have a built-in way to identify you."* The gate was working (the user *was* the principal voice); it just had
+no name to say.
+
+Then the real question, verbatim: **"I thought that Speaker 1 was a different voice. Just to clarify how do
+we define a 'principal'?"** That's the crux — *principal* was a load-bearing concept with **no UI**. It's the
+single member Ed gates to **and responds to** ("Ed identifies everyone, acts on *you*"); everyone else is
+identify-only (recognized, attributed, not answered). And it could only ever be set as the **first**
+enrollment — "add another voice" always makes a guest, with no way to change it. So a user who enrolled a
+nameless first voice, then enrolled themselves *with* a name as voice #2, lands exactly here: gated to a
+nameless principal, their name stranded on a guest, no recovery path. The `Speaker N` fallback I'd *just*
+shipped is why it surfaced as "Speaker 1" — which the user reasonably read as *someone else*.
+
+The latest voice log made the cost concrete: attribution was happening (turns tagged George/Chad) but
+**unreliable** — a Korean whisper hallucination ("시청해주셔서 감사합니다" = *thanks for watching*) got tagged
+**George**, and Ed answered Chad's story while addressing George. That's what overlapping/duplicate
+voiceprints (a nameless principal that's probably *also* George's voice, plus a named George, plus Chad) do
+to the N-way classifier — it can't cleanly separate, so noise lands on whichever centroid is nearest.
+
+The fix the user asked for, and the right one: **a way to mark which voice is the principal.** Added a per-row
+star toggle to the roster list — ★ on the current principal, click ☆ on any other to promote it
+(`commitRoster({...roster, principalId: id})`), which re-tunes the live gate *and* makes that voice's name the
+session identity. Re-introduces a principal indicator we'd dropped with `(you)` — but as an *actionable
+control*, not a vague label. Browser-verified against the user's exact roster: clicking George's ☆ moved ★ to
+George and persisted. Now they can promote George (or re-enroll clean) without nuking everything. `a2ee20d`,
+filed + closed `edmini-ncw`.
+
+**Content potential:** "a concept with no UI" — *principal* was real in the data model and the gate logic for
+the whole speaker arc, but nowhere on screen, so the first user to enroll out-of-order couldn't even *see*
+the thing that was wrong. And the debugging lesson stacked on the last entry's: I trusted a null field as a
+signal when it was just an absent field — *check the payload, don't pattern-match the symptom.*
+
+---
+
 ### 2026-06-23 — "who is 'you'?" — speaker names, and deleting the harness that taught us them
 
 A UX session that turned into a small cleanup. The trigger, verbatim:
