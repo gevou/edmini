@@ -1,10 +1,14 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `b144152`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `05d9f09`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
 
-## CHECKPOINT (2026-06-23) — speaker naming + harness removal
+## CHECKPOINT (2026-06-23) — speaker naming + harness removal + dead-code cleanup
+- **Dead-code cleanup (follow-ups to 9d9):** dropped now-unused `RosterStore.clear()` (only caller was the
+  removed /tsvad-lab harness; `184d380`) and deleted the whole legacy `EnrollmentStore` module
+  (`enrollment-store.ts` + barrel export + interface — superseded by the roster store; `05d9f09`). The
+  legacy `tsvad_enrollment` KEY migration in `roster-store.load()` is untouched. 219 tests / tsc green.
 - **`edmini-mfl` (DONE, needs-verification):** header no longer says `active — you`. Pure tested helper
   `src/lib/tsvad/roster-labels.ts` `rosterMemberLabel` → name or `Speaker N` (1-based roster position).
   Roster list: inline-rename ANY voice (click name → edit → Enter saves via commitRoster; clear → reverts
