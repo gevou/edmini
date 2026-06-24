@@ -1265,6 +1265,17 @@ export default function VoiceAgent() {
                 <div className="mt-1 flex flex-col items-end gap-0.5">
                   {roster.members.map((m) => (
                     <div key={m.id} className="flex items-center gap-1">
+                      {/* Principal toggle (edmini-ncw): ★ = the one voice Ed gates to + responds to. */}
+                      <button
+                        title={m.id === roster.principalId
+                          ? "Principal — the voice Ed responds to"
+                          : "Make principal — Ed will respond to this voice"}
+                        onClick={() => { if (m.id !== roster.principalId) commitRoster({ ...roster, principalId: m.id }); }}
+                        className="text-[10px] leading-none"
+                        style={{ lineHeight: 1, padding: "0 2px", color: m.id === roster.principalId ? "#f59e0b" : "rgba(255,255,255,0.20)", cursor: m.id === roster.principalId ? "default" : "pointer" }}
+                      >
+                        {m.id === roster.principalId ? "★" : "☆"}
+                      </button>
                       {editingMemberId === m.id ? (
                         <input
                           autoFocus
