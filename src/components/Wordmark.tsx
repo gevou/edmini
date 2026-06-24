@@ -9,14 +9,17 @@ export function Wordmark({
   color = "#f59e0b",
   className,
   style,
+  title = 'Ed·mini — "Ed" is short for Edgar',
 }: {
   /** Color of the "Ed" part — the brand accent (may be status-driven in the live header). */
   color?: string;
   className?: string;
   style?: CSSProperties;
+  /** Hover tooltip — the wordplay easter egg. */
+  title?: string;
 }) {
   return (
-    <h1 className={className} style={{ fontFamily: "var(--font-syne)", ...style }}>
+    <h1 className={className} style={{ fontFamily: "var(--font-syne)", ...style }} title={title}>
       <span style={{ color, transition: "color 0.4s ease" }}>Ed</span>
       <span style={{ color: "rgba(255,255,255,0.30)", fontSize: "0.62em", fontWeight: 500 }}>mini</span>
     </h1>

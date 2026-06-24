@@ -130,9 +130,6 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
     >
       <header className="px-6 pt-4 pb-2 shrink-0">
         <Wordmark color={accentColor} className="text-5xl font-black tracking-tight leading-none" />
-        <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
-          voice agent
-        </p>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
@@ -1208,9 +1205,7 @@ export default function VoiceAgent() {
       >
         <div>
           <Wordmark color={accentColor} className="text-5xl font-black tracking-tight leading-none" />
-          <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
-            voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
-          </p>
+          <p className="text-xs text-white/15 mt-1 normal-case tracking-normal">{BUILD_ID}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           {apiKey !== "__server__" && <button
