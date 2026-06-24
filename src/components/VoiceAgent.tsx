@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import EventLogPanel from "@/components/EventLogPanel";
+import { Wordmark } from "@/components/Wordmark";
 import { pushEvent } from "@/lib/event-log-store";
 import type { LedgerEvent } from "@/lib/ledger";
 import { selectCatchUp } from "@/lib/ledger";
@@ -128,12 +129,7 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
       }}
     >
       <header className="px-6 pt-4 pb-2 shrink-0">
-        <h1
-          className="text-5xl font-black tracking-tight leading-none"
-          style={{ fontFamily: "var(--font-syne)", color: accentColor }}
-        >
-          Edmini
-        </h1>
+        <Wordmark color={accentColor} className="text-5xl font-black tracking-tight leading-none" />
         <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
           voice agent
         </p>
@@ -1211,12 +1207,7 @@ export default function VoiceAgent() {
         }}
       >
         <div>
-          <h1
-            className="text-5xl font-black tracking-tight leading-none"
-            style={{ fontFamily: "var(--font-syne)", color: accentColor, transition: "color 0.4s ease" }}
-          >
-            Edmini
-          </h1>
+          <Wordmark color={accentColor} className="text-5xl font-black tracking-tight leading-none" />
           <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
             voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
           </p>

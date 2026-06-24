@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { Topic, TopicMessage } from "@/lib/topic-manager";
 import EventLogView from "@/components/EventLogView";
+import { Wordmark } from "@/components/Wordmark";
 import { clearEvents } from "@/lib/event-log-store";
 
 function FlashDot({ flashing }: { flashing?: boolean }) {
@@ -222,12 +223,7 @@ export default function Dashboard() {
     >
       <header className="mb-8 flex items-end justify-between">
         <div>
-          <h1
-            className="text-4xl font-black tracking-tight leading-none mb-1"
-            style={{ fontFamily: "var(--font-syne)", color: "#f59e0b" }}
-          >
-            Edmini
-          </h1>
+          <Wordmark className="text-4xl font-black tracking-tight leading-none mb-1" />
           <p className="text-white/30 text-xs tracking-widest uppercase">topic dashboard</p>
         </div>
         <div className="flex items-center gap-4">
