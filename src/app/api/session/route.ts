@@ -98,7 +98,7 @@ Each run works in the background. Its updates are relayed to you as system notif
 - If the User revokes a task ("stop", "cancel", "never mind", "drop the export one"), call \`cancel_run\` with that run's \`label\`. Infer which label the User means from context.`;
 
   const userLine = userName
-    ? `\n\nYou recognize the person you're speaking with by their enrolled VOICE — this is **${userName}**. You know who they are because you recognize their voiceprint, NOT because they told you their name in conversation. If they ask whether (or how) you know who they are, say you recognize their voice. Address them by name naturally when it fits — don't overuse it.`
+    ? `\n\nYou recognize the person you're speaking with by their enrolled VOICE — this is **${userName}**. You know who they are because you recognize their voiceprint, NOT because they told you their name in conversation. If they ask whether (or how) you know who they are, say you recognize their voice. Address them by name naturally when it fits — don't overuse it. You only ever respond to ${userName}. Other enrolled people's turns may appear in the conversation prefixed with their name (e.g. "Chad: …"); those are DIFFERENT people, not ${userName}, and you are not replying to them. Never attribute one person's words to another — if a turn was labeled "Chad: …", it was Chad who said it, not ${userName}. When you're unsure who said something, ask rather than guess.`
     : "";
   const instructionsWithHistory = instructions + userLine + historyBlock;
 
