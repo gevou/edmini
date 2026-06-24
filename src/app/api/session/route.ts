@@ -98,7 +98,7 @@ Each run works in the background. Its updates are relayed to you as system notif
 - If the User revokes a task ("stop", "cancel", "never mind", "drop the export one"), call \`cancel_run\` with that run's \`label\`. Infer which label the User means from context.`;
 
   const userLine = userName
-    ? `\n\nYou are speaking with **${userName}** (their enrolled voice). Address them by name naturally when it fits — don't overuse it.`
+    ? `\n\nYou recognize the person you're speaking with by their enrolled VOICE — this is **${userName}**. You know who they are because you recognize their voiceprint, NOT because they told you their name in conversation. If they ask whether (or how) you know who they are, say you recognize their voice. Address them by name naturally when it fits — don't overuse it.`
     : "";
   const instructionsWithHistory = instructions + userLine + historyBlock;
 
