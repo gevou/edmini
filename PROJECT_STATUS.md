@@ -1,10 +1,17 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `a2ee20d`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `728709b`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
 
 ## CHECKPOINT (2026-06-23b) — principal management (ncw) + identity debugging
+- **`edmini-5v7` (DONE, needs-verification):** agent persona renamed to **Edmini** (answers to "Ed", says
+  "Edmini" when asked) in session/route.ts — "Ed" was too short to distinguish in voice. `728709b`.
+- **`edmini-bz6` (P3, open):** non-speech reaches the principal/respond path — a random noise hallucinated
+  "thanks for watching" (Korean) → became a principal turn Ed answered + a fake ledger turn. put's
+  non-speech gate only covers the not-enrolled path; add it to the enrolled/graded path as defense-in-depth
+  (design fork: defer the principal response vs ledger-hygiene-only; also extend the artifact denylist
+  beyond English). Immediate mitigation = clean roster (ncw + re-enroll) + ce9.
 - **`edmini-ncw` (DONE, needs-verification):** per-row ★/☆ toggle in the roster list to mark/switch the
   **principal** (the one voice Ed gates to + responds to). ★ = current principal; click ☆ to promote
   (`commitRoster({...roster, principalId: id})`) → re-tunes the live gate + makes that voice's name the
