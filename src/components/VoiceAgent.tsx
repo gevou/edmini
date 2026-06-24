@@ -105,7 +105,7 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   idle: "Tap to start a conversation",
   connecting: "Connecting…",
   listening: "Listening",
-  speaking: "Ed is speaking",
+  speaking: "Edmini is speaking",
   error: "Something went wrong — tap to retry",
 };
 
@@ -132,7 +132,7 @@ function KeyInput({ onSave }: { onSave: (key: string) => void }) {
           className="text-5xl font-black tracking-tight leading-none"
           style={{ fontFamily: "var(--font-syne)", color: accentColor }}
         >
-          Ed
+          Edmini
         </h1>
         <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
           voice agent
@@ -1071,7 +1071,7 @@ export default function VoiceAgent() {
     void micSenderRef.current?.replaceTrack(active ? null : micTrackRef.current);
     pushEvent({
       kind: "info",
-      label: active ? "Enrolling — Ed paused (mic muted to model)" : "Enrollment ended — Ed resumed",
+      label: active ? "Enrolling — Edmini paused (mic muted to model)" : "Enrollment ended — Edmini resumed",
     });
     if (!active) tryDrain(); // flush anything that queued while paused
   }, [tryDrain]);
@@ -1215,7 +1215,7 @@ export default function VoiceAgent() {
             className="text-5xl font-black tracking-tight leading-none"
             style={{ fontFamily: "var(--font-syne)", color: accentColor, transition: "color 0.4s ease" }}
           >
-            Ed
+            Edmini
           </h1>
           <p className="text-xs text-white/30 mt-1 tracking-widest uppercase">
             voice agent <span className="text-white/15 normal-case tracking-normal">· {BUILD_ID}</span>
@@ -1466,7 +1466,7 @@ export default function VoiceAgent() {
           <button
             onClick={toggleSession}
             disabled={status === "connecting"}
-            aria-label={isActive ? "End conversation" : "Start conversation with Ed"}
+            aria-label={isActive ? "End conversation" : "Start conversation with Edmini"}
             className="relative z-10 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95"
             style={{
               width: 88,
@@ -1516,7 +1516,7 @@ export default function VoiceAgent() {
         )}
         {status === "speaking" && (
           <p className="text-xs tracking-widest uppercase" style={{ color: accentColor, minHeight: 20 }}>
-            Ed is speaking
+            Edmini is speaking
           </p>
         )}
         {status === "connecting" && (

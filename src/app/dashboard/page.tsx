@@ -226,7 +226,7 @@ export default function Dashboard() {
             className="text-4xl font-black tracking-tight leading-none mb-1"
             style={{ fontFamily: "var(--font-syne)", color: "#f59e0b" }}
           >
-            Ed
+            Edmini
           </h1>
           <p className="text-white/30 text-xs tracking-widest uppercase">topic dashboard</p>
         </div>

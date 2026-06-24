@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       .map((e) => {
         // Attribute an enrolled non-principal turn by name (q1e), so Ed recalls "Roger said X" not "User".
         const speaker = typeof e.payload.speaker === "string" ? e.payload.speaker : null;
-        const who = e.source === "user" ? (speaker ?? "User") : "Ed";
+        const who = e.source === "user" ? (speaker ?? "User") : "Edmini";
         const text = typeof e.payload.text === "string" ? e.payload.text : "";
         return text ? `- ${who}: ${text}` : "";
       })

@@ -16,13 +16,13 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Ed",
+  title: "Edmini",
   description: "Conversational voice agent",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Ed",
+    title: "Edmini",
   },
 };
 
