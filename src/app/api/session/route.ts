@@ -205,7 +205,9 @@ Each run works in the background. Its updates are relayed to you as system notif
         audio: {
           input: {
             format: { type: "audio/pcm", rate: 24000 },
-            transcription: { model: "whisper-1" },
+            // Lock to English (edmini-h8b): auto language-detection misfires on short/noisy audio
+            // (e.g. "hey" → Korean) and feeds non-English whisper hallucinations. Temporary English-only.
+            transcription: { model: "whisper-1", language: "en" },
             turn_detection: {
               type: "server_vad",
               threshold: 0.5,
