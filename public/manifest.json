@@ -1,6 +1,6 @@
 {
-  "name": "Ed",
-  "short_name": "Ed",
+  "name": "Edmini",
+  "short_name": "Edmini",
   "description": "Conversational voice agent",
   "start_url": "/",
   "display": "standalone",
