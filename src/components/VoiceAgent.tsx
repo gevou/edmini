@@ -704,7 +704,11 @@ export default function VoiceAgent() {
           setTurns((prev) => prev.map((t) => (t.id === prevSpeaking ? { ...t, spokenIndex: t.edText.length } : t)));
         }
         audioStartRef.current = performance.now();
+        // mb0/78z: audio.delta usually LEADS the transcript delta that creates the turn, so this can
+        // capture null. The ticker latches the id from currentTurnIdRef once the turn exists. Breadcrumb
+        // (temporary) confirms which case happened, readable in the on-device event log.
         speakingTurnIdRef.current = currentTurnIdRef.current;
+        pushEvent({ kind: "info", label: "mb0 cursor start", detail: speakingTurnIdRef.current === null ? "turn null → will latch" : `turn ${speakingTurnIdRef.current}` });
         reachedFullRef.current = false;
         stopProgressTicker();
         progressTickerRef.current = setInterval(() => {
@@ -712,6 +716,9 @@ export default function VoiceAgent() {
             stopProgressTicker();
             return;
           }
+          // mb0/78z fix: latch the turn id once the transcript creates it (the capture at audio start may
+          // be null when audio leads the transcript). Without this the ticker no-ops forever → cursor never moves.
+          if (speakingTurnIdRef.current === null) speakingTurnIdRef.current = currentTurnIdRef.current;
           const id = speakingTurnIdRef.current;
           const start = audioStartRef.current;
           if (id === null || start === null) return;
