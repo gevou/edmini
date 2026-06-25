@@ -210,7 +210,11 @@ Each run works in the background. Its updates are relayed to you as system notif
             transcription: { model: "whisper-1", language: "en" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.5,
+              // edmini-bz6: a bit less sensitive (0.5 → 0.6) so quiet blips/noise don't commit a phantom
+              // turn that the principal grader then "responds" to (e.g. the enrollment-tail blip that made
+              // Edmini speak unprompted right after enrolling). Tunable — raise toward 0.7 if blips persist,
+              // lower if it misses soft speech. Doesn't catch a LOUD non-speech sound (that's the bz6 gate).
+              threshold: 0.6,
               prefix_padding_ms: 300,
               silence_duration_ms: 800,
               ...(grading ? { create_response: false } : {}),
