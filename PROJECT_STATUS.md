@@ -1,8 +1,29 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `5698520`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `b17b6bb`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-23d) — language (in + out), multi-speaker, cross-device, cursor redesign
+- **Language, both axes, VERIFIED:** `edmini-h8b` (INPUT) — `transcription.language="en"`; user turns all
+  transcribe as clean English. `edmini-d6r` (OUTPUT) — the model was replying in Tamil and confabulating
+  "Edmini sounded Tamil" (seq 265/269); added a prompt rule: always reply in English, Greek only if the
+  User speaks Greek, never infer a language from how a name sounds. Both flipped verified. NOTE: transcription
+  `language` is a single ISO code → can't lock "en+el" for INPUT (output en+el is prompt-driven, fine).
+- **`edmini-cdu` (P2, OPEN — prompt half landed):** multi-speaker conflation. #2 (generation-time: model
+  mixes already-labeled speakers) mitigated by a prompt rule (only respond to the principal; "Name:" turns
+  are other people; never cross-attribute; ask when unsure). #1 (label correctness: classifier mislabels →
+  wrong content under a real name) is NOT fixable by prompt — needs clean roster + `ce9`/`dn9`. Kept open.
+- **`edmini-l0f` (DONE, needs-verification):** voiceprint identity narration — prompt now credits the
+  enrolled voice ("I recognize your voice"), not "you told me".
+- **`edmini-78z` (DONE, needs-verification):** dropped the per-word spoken cursor (unsyncable — Realtime API
+  has no word timestamps; `item_id` only groups streams, doesn't give a playback cursor) → **whole-turn
+  emphasis**: full reply text always readable, the actively-voiced Ed turn brightened + amber-tinted until
+  response.done. Removed ticker/narration-progress wiring/spokenIndex; `narration-progress.ts` kept parked
+  (tested) for `69p`. `b17b6bb`.
+- **`edmini-epn` bumped P4→P2:** user expected enrolled voices to persist across devices; they don't
+  (localStorage by design). Declined an export/import stopgap → go straight to accounts (SSO + server-side
+  voiceprint). Privacy decision (biometric leaves device) to revisit before real users.
 
 ## CHECKPOINT (2026-06-23c) — Edmini identity: naming, wordmark, voiceprint, English lock
 - **Renamed Ed → Edmini everywhere.** Persona owns only "Edmini" (never "Ed"; "Ed" is short for Edgar) —
@@ -14,9 +35,7 @@
   "mini" smaller (0.62em) + dimmed; hover tooltip 'Ed·mini — "Ed" is short for Edgar' (the Electric Dreams
   movie ref left out pending a copyright call). Dropped the "voice agent" subtitle (it's a supervisor, not a
   voice agent).
-- **`edmini-h8b` (DONE, needs-verification):** locked transcription to English (`transcription.language="en"`)
-  — auto-detect was misfiring ("hey"→Korean) + feeding non-English hallucinations. (A Japanese "はい" still
-  appeared at seq 253 — confirm on a FRESH post-deploy session.)
+- **`edmini-h8b` VERIFIED** (see 23d): transcription locked to English; user turns all transcribe English.
 - **`edmini-l0f` (DONE, needs-verification):** voiceprint identity WORKS (principal named → userName injected
   → Edmini greets the principal unprompted + attributes turns `spk=George`), but when asked "how do you know
   me?" the model credited the conversation, not the voice (the history block carries past self-intros).

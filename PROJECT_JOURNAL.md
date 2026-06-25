@@ -20,7 +20,62 @@ produced ever silently disappears.
 
 ## Journal Entries
 
-### 2026-06-23 — naming Edmini (Ed = Edgar), and "you told me" vs "I know your voice"
+### 2026-06-24 — the Tamil incident, and a cursor that could never be right
+
+Two bugs this run, and both turned out to be about the gap between what a system *can* know and what it
+*pretends* to.
+
+**Edmini went rogue in Tamil.** The user: *"Check the logs from a conversation I had with edmini earlier.
+It's hilarious and concerning."* It was. He'd said "Say it with me," and Edmini replied — in fluent **Tamil**:
+*"நன்றி! வணக்கம்…"* — then, when asked why, **confabulated a justification**: *"I responded in Tamil because
+you started by saying 'Edmini' in a way that suggested familiarity with Tamil."* The fix hinged on a
+distinction the user's framing blurred: we'd already locked transcription to English (`h8b`), so I almost
+filed this as "the lock isn't working." But the logs were decisive — *every user turn transcribed as clean
+English*. The Tamil was Edmini's **output**, which `transcription.language` doesn't touch at all. Input
+language (whisper) and output language (the gpt-realtime response) are **two unrelated axes**; only the
+prompt governs output, and the prompt said nothing. Added the rule (`d6r`): always reply in English, Greek
+only if the User speaks Greek, *and never infer a language from how a name or word sounds* — that last clause
+aimed squarely at the "Edmini sounds Tamil" confabulation. A footnote worth keeping: for **input** you
+can't have "en+el" — `transcription.language` is a single ISO code — but for **output** the prompt does
+both freely.
+
+**The cursor that could never be right.** Last session I'd "fixed" the spoken-text cursor (`78z`) by
+latching its turn id — and it worked, in the sense that it finally *moved*. The user: *"I can see the text
+being 'completed' following the cursor, but it has nothing to do with the audio. the audio is much slower…
+I don't like the cursor, I prefer to be able to see all the available text and only emphasize the spoken
+part."* Two complaints, one root: the cursor was a **wall-clock estimate at a fixed char-rate that's never
+calibrated** — and fundamentally, **the Realtime API emits no per-word timestamps**, so a per-word position
+*can't* track real audio. He even brought a sharp counter-proposal — a write-up about mapping `audio.delta`
+and `audio_transcript.delta` by `item_id`. I had to push back honestly: that approach is correct *and it
+confirms the limit* — its own conclusion is "present a generic 'AI Speaking' indicator." `item_id` groups
+the two streams to a turn (which we already know — one response at a time); it does not yield a playback
+cursor. And two edmini-specific nuances the generic advice missed: we play audio via the **WebRTC media
+track**, not by decoding `audio.delta` (so byte-counting would measure *generation*, which runs ahead of
+playback), and even perfect playback timing can't map time→word without word timestamps. He landed it well:
+*"ok fine let's do that for now and revisit if we test other APIs that support it."* So I **ripped the
+per-word machinery out** — ticker, wall-clock refs, `spokenIndex`, the whole `narration-progress` wiring —
+and replaced it with **whole-turn emphasis**: the full reply is always readable, and the turn being voiced
+is brightened + amber-tinted until `response.done`. Accurate, because we know exactly *which* turn is
+speaking; honest, because it claims nothing it can't deliver. Kept `narration-progress.ts` parked (still
+tested) for `69p` in case a future API gives us word timing.
+
+Also this run: hardened the prompt against **multi-speaker conflation** (`cdu`) — the user worried *"what if
+user A and user B take turns? I hope the prompt is enough,"* and the honest answer was that the prompt only
+covers *generation-time* mixing; *wrong labels* from the classifier (a hallucination tagged "George") it
+can't fix — that's clean-roster + `ce9`/`dn9`. And `epn` (cross-device identity) jumped P4→P2 when the user
+expected enrolled voices to follow him across devices and learned they're localStorage-only by design;
+he declined an export/import stopgap and chose to go straight to accounts.
+
+`h8b` + `d6r` flipped **verified** (input proven in logs; output deployed and English since). `78z`/`l0f`/
+`cdu` await device passes. Commits across the run; HEAD `b17b6bb`.
+
+**Content potential:** "the model that explained itself wrong, twice." First it knew George's name *by his
+voiceprint* but narrated "you told me" (last entry); then it switched to Tamil and invented a reason. An LLM
+will always produce a fluent account of its own behavior — and that account is unconstrained by the actual
+mechanism. The design lesson that keeps recurring: **the system's story about itself is a separate surface
+you have to engineer** (or constrain) — it is not a read-out of the truth. And its sibling: the cursor saga
+as "honest UI" — refusing a fake-precise affordance (per-word highlight that drifts) in favor of one that
+only claims what's actually knowable (this whole turn is speaking).
 
 The session where the assistant got its name back. It started as a one-liner — should the model know it's
 "edmini"? — and unfolded into identity, branding, and a subtle truth about how Edmini *knows* you.
