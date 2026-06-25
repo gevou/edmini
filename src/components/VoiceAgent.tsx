@@ -15,7 +15,6 @@ import {
   type NarrationQueue,
   type Priority,
 } from "@/lib/voice/narration-queue";
-import { createNarrationProgress, type NarrationProgress } from "@/lib/voice/narration-progress";
 import { createBrowserTargetSpeakerVad, createLocalStorageRosterStore, createSpeakerClassifier, rosterMemberLabel, TSVAD_MODEL_URL, type TargetSpeakerVad, type Enrollment, type Roster, type SpeakerClassifier } from "@/lib/tsvad";
 import { createUtteranceGrader, type UtteranceGrader } from "@/lib/voice/utterance-grader";
 import { isLikelyNonSpeech, type TranscriptLogprob } from "@/lib/voice/transcript-confidence";
@@ -39,7 +38,6 @@ interface Turn {
   userText: string | null;
   edText: string;
   edStreaming: boolean;
-  spokenIndex?: number; // conservative spoken-so-far cursor while Ed narrates this turn (mb0)
   ts: number; // ms epoch when this turn was created (for the UI timestamp)
   grade?: number; // speaker-ID confidence on a RESPONDED turn when enrolled (hy8); undefined = no chip
   speaker?: string; // attributed display name from the N-speaker classifier (q1e); undefined = no label
@@ -188,6 +186,9 @@ export default function VoiceAgent() {
   // The roster as real state so the management UI re-renders on change (persists across sessions). The
   // rosterRef mirror is for non-React reads in callbacks (classifier id→name); commitRoster keeps both in sync.
   const [roster, setRosterUi] = useState<Roster>({ principalId: null, members: [] });
+  // The Ed turn currently being voiced (78z) — emphasized as a whole while speaking. No per-word cursor:
+  // the Realtime API has no word timestamps, so a per-word position only drifts. Cleared at response.done.
+  const [speakingTurnId, setSpeakingTurnId] = useState<number | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -251,15 +252,6 @@ export default function VoiceAgent() {
   // True while the next Ed turn is proactive narration (no user utterance), so its transcript turn
   // renders without a blank user bubble. Set when narration is injected; cleared when the User speaks.
   const edInitiatedPendingRef = useRef<boolean>(false);
-  // Narration progress (mb0): a conservative spoken-position cursor for the active Ed turn.
-  const narrationProgressRef = useRef<NarrationProgress | null>(null);
-  if (!narrationProgressRef.current) narrationProgressRef.current = createNarrationProgress();
-  // Wall-clock timestamp (performance.now()) at this utterance's audio start. NB: audioEl.currentTime
-  // does NOT advance for a WebRTC MediaStream, so we time playback by wall clock (audio plays ~realtime).
-  const audioStartRef = useRef<number | null>(null);
-  const speakingTurnIdRef = useRef<number | null>(null); // the turn the cursor is sweeping (survives currentTurnIdRef→null)
-  const reachedFullRef = useRef<boolean>(false); // set when the cursor hits the end → stop the ticker
-  const progressTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fire one response: send its conversation item(s), then response.create, marking a response in
   // flight. Only call when responseActiveRef is false.
@@ -612,13 +604,6 @@ export default function VoiceAgent() {
     try { const r = createLocalStorageRosterStore().load(); rosterRef.current = r; setRosterUi(r); } catch { /* ignore */ }
   }, []);
 
-  const stopProgressTicker = useCallback(() => {
-    if (progressTickerRef.current) {
-      clearInterval(progressTickerRef.current);
-      progressTickerRef.current = null;
-    }
-  }, []);
-
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
     let serverEvent: Record<string, unknown>;
     try {
@@ -696,52 +681,15 @@ export default function VoiceAgent() {
       if (!modelSpeakingFlagRef.current) {
         modelSpeakingFlagRef.current = true;
         pushEvent({ kind: "model_speaking", label: "Model started speaking" });
-        // mb0: start sweeping the spoken cursor for this utterance, timed by wall clock.
-        // Finalize any previous speaking turn (safety) and target the active one. Its id is captured
-        // here so the cursor keeps advancing even after currentTurnIdRef is cleared at transcript.done.
-        const prevSpeaking = speakingTurnIdRef.current;
-        if (prevSpeaking !== null) {
-          setTurns((prev) => prev.map((t) => (t.id === prevSpeaking ? { ...t, spokenIndex: t.edText.length } : t)));
-        }
-        audioStartRef.current = performance.now();
-        // mb0/78z: audio.delta usually LEADS the transcript delta that creates the turn, so this can
-        // capture null. The ticker latches the id from currentTurnIdRef once the turn exists. Breadcrumb
-        // (temporary) confirms which case happened, readable in the on-device event log.
-        speakingTurnIdRef.current = currentTurnIdRef.current;
-        pushEvent({ kind: "info", label: "mb0 cursor start", detail: speakingTurnIdRef.current === null ? "turn null → will latch" : `turn ${speakingTurnIdRef.current}` });
-        reachedFullRef.current = false;
-        stopProgressTicker();
-        progressTickerRef.current = setInterval(() => {
-          if (reachedFullRef.current) {
-            stopProgressTicker();
-            return;
-          }
-          // mb0/78z fix: latch the turn id once the transcript creates it (the capture at audio start may
-          // be null when audio leads the transcript). Without this the ticker no-ops forever → cursor never moves.
-          if (speakingTurnIdRef.current === null) speakingTurnIdRef.current = currentTurnIdRef.current;
-          const id = speakingTurnIdRef.current;
-          const start = audioStartRef.current;
-          if (id === null || start === null) return;
-          const elapsedAudioMs = performance.now() - start;
-          setTurns((prev) =>
-            prev.map((t) => {
-              if (t.id !== id) return t;
-              const { spokenIndex } = narrationProgressRef.current!.advance({
-                fullText: t.edText,
-                elapsedAudioMs,
-              });
-              reachedFullRef.current = t.edText.length > 0 && spokenIndex >= t.edText.length;
-              return { ...t, spokenIndex };
-            }),
-          );
-        }, 100);
+        // 78z: emphasize the actively-speaking turn as a whole (no per-word cursor — the Realtime API
+        // has no word timestamps, so a per-word position only drifts). speakingTurnId is set when the
+        // transcript creates the turn (below) and cleared at response.done.
       }
     }
     if (type === "response.done") {
       setStatus("listening");
       modelSpeakingFlagRef.current = false;
-      // mb0: do NOT snap to full here — response.done fires when generation finishes, but the audio is
-      // still playing out. The wall-clock ticker keeps sweeping and reaches full on its own.
+      setSpeakingTurnId(null); // 78z: stop emphasizing — the turn finished (audio may trail slightly; fine)
       onResponseEnded(); // clear in-flight, fire next queued response / drain narration
     }
     // A rejected response.create (e.g. "conversation already has an active response") arrives as an
@@ -789,6 +737,7 @@ export default function VoiceAgent() {
             ...prev,
             { id: newId, userText, edText: delta, edStreaming: true, ts: Date.now() },
           ]);
+          setSpeakingTurnId(newId); // 78z: this Ed turn is the one being voiced → emphasize while speaking
         }
       }
     }
@@ -901,7 +850,7 @@ export default function VoiceAgent() {
         }
       }
     }
-  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, stopProgressTicker, recordHeard, logUserUtterance, fireResponse]);
+  }, [postTurnToTopic, dispatchToolCall, tryDrain, onResponseEnded, logVoiceOutput, recordHeard, logUserUtterance, fireResponse]);
 
   const startSession = useCallback(async () => {
     setErrorMsg(null);
@@ -1105,11 +1054,7 @@ export default function VoiceAgent() {
     runRegistryRef.current = createRunRegistry();
     narrationQueueRef.current = createNarrationQueue();
     pendingToolResponsesRef.current = [];
-    stopProgressTicker();
-    audioStartRef.current = null;
-    speakingTurnIdRef.current = null;
-    reachedFullRef.current = false;
-    narrationProgressRef.current = createNarrationProgress();
+    setSpeakingTurnId(null);
     userSpeakingRef.current = false;
     responseActiveRef.current = false;
     dcRef.current?.close();
@@ -1380,17 +1325,13 @@ export default function VoiceAgent() {
               {(turn.edText || turn.edStreaming) && (
                 <div className="flex flex-col items-start">
                   <div
-                    className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-bl-sm text-white/90 ${turn.edStreaming ? "opacity-60" : ""}`}
-                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed rounded-bl-sm transition-colors ${turn.id === speakingTurnId ? "text-white" : "text-white/85"}`}
+                    style={{
+                      background: turn.id === speakingTurnId ? "rgba(245,158,11,0.10)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${turn.id === speakingTurnId ? "rgba(245,158,11,0.30)" : "rgba(255,255,255,0.08)"}`,
+                    }}
                   >
-                    {turn.spokenIndex !== undefined && turn.spokenIndex < turn.edText.length ? (
-                      <>
-                        <span>{turn.edText.slice(0, turn.spokenIndex)}</span>
-                        <span className="text-white/35">{turn.edText.slice(turn.spokenIndex)}</span>
-                      </>
-                    ) : (
-                      turn.edText
-                    )}
+                    {turn.edText}
                     {turn.edStreaming && (
                       <span className="inline-block w-1 h-3 ml-1 bg-current rounded-full align-middle" style={{ animation: "pulse 1s ease-in-out infinite" }} />
                     )}
