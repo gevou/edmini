@@ -20,7 +20,57 @@ produced ever silently disappears.
 
 ## Journal Entries
 
-### 2026-06-24 — the Tamil incident, and a cursor that could never be right
+### 2026-06-25 — chasing "why won't it hear me" to the wrong door, three times
+
+A debugging session that kept finding the culprit behind a *different* door than the one the symptom pointed
+at — and the user, not me, eventually named the real one.
+
+**Door 1: "Edmini started talking before I said anything."** Opened on a fresh phone, enrolled, and Edmini
+launched into a recall of past conversations unprompted (*"I hear you, George. I do have a record of our
+recent conversations…"*). My first suspect was the iee rehydration **catch-up** — but reading `selectCatchUp`
+killed that cleanly: it's scoped to `source === "harness"` + known runIds, so it *never* replays conversation;
+and the only recent harness events were seeded test runs the response never mentioned. The real trigger: a
+**phantom non-speech turn at the enroll→listen transition** — the mic resumed, a quiet blip tripped server-VAD,
+the *just-enrolled* principal grader "responded" to it, and the model, handed an empty turn + a history block,
+improvised a recall. The fix came from the user, not me: *"what if we just reduce the standard VAD sensitivity
+a bit?"* — exactly right, and the cheapest lever (threshold 0.5→0.6, drop the blip upstream before it ever
+commits). `0191e17`.
+
+**Door 2: "I deleted a non-principal and Edmini stopped responding to me."** A causal-looking story — and
+wrong. The logs were unambiguous: George's *own* voice was scoring **0.16–0.35** against his centroid, mostly
+*below* the 0.35 respond threshold → suppressed. And it *cannot* be the deletion: the grader's principal score
+is `cosine(your voice, your centroid)`, **mathematically independent of every other roster member** (confirmed
+in `scoreWindow`) — removing Brandon can't move it. The remove button preserves the principal correctly. So:
+coincidental timing, real cause is a **weak centroid**. The sibling report — *"I saw the transcript from someone
+no longer enrolled"* — was also not a bug: a deleted member can't be re-attributed (the classifier scores the
+current roster), so what he saw was *past* turns persisting, because deleting a voiceprint doesn't scrub that
+speaker's logged words from the ledger/history. By design — but a real privacy question now on the board. (One
+bright spot in those logs: the `cdu` multi-speaker prompt *worked* — *"That was someone else—Brandon—speaking.
+I only respond to you, George."*)
+
+**Door 3: "If we make the enroll longer does it get better? In 10 seconds I cannot even say the entire
+sentence."** Yes — and a good catch. Enrollment captured only 30 voiced windows with a 20s timeout and an ~11s
+passage, so he was getting cut off mid-sentence and the centroid never saw his back-half phonemes. Bumped to 60
+windows / 35s and extended the passage (`750bbf2`). But I flagged the ceiling honestly: this model scores
+**~0.83 same-speaker** in our own bake-off, so 0.3 isn't *just* short enrollment — that gap smells of something
+else.
+
+**The right door, named by the user:** *"we should flag the device + audio input of the enrollment and allow
+the user to enroll on multiple devices/audio inputs."* That's it — **channel mismatch**. Speaker d-vectors are
+notoriously sensitive to the capture channel (mic, codec, room); a centroid enrolled on a laptop mic genuinely
+scores ~0.3 on a phone, and he's been bouncing phone↔desktop the whole time. It fits the data better than
+every hypothesis I'd chased. Filed `edmini-2vi` (flag `{deviceId,label}` at enroll → warn on mismatch →
+per-input centroids), and it gave `epn` (Google SSO) a sharp new reason to exist: *"I want to detect user per
+device/audio input"* — the account is the only thing that can say "this laptop centroid and this phone centroid
+are the same George." So `f1l` helps on one input, `2vi` makes the centroid channel-aware, `epn` ties it across
+devices.
+
+**Content potential:** "the symptom points at the wrong door." Three plausible, causal-sounding bug reports
+(catch-up replay, deletion breaks the gate, enrollment too short) — and the actual root was none of them, it was
+the *capture channel*. The discipline that paid off each time was refusing the causal story and reading the
+exact code/log: `selectCatchUp` is harness-only; the grader score is member-independent; a deleted member can't
+be re-labeled. And the meta-lesson: the user, living in the symptom across devices, saw the channel-mismatch
+pattern I couldn't from the logs alone — domain intuition beating log-archaeology.
 
 Two bugs this run, and both turned out to be about the gap between what a system *can* know and what it
 *pretends* to.

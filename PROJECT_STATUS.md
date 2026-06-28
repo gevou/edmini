@@ -1,8 +1,38 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `b17b6bb`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `750bbf2`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-25) — speaker-ID reliability: phantom blips, weak centroid, channel mismatch
+The session's thread: George (principal) keeps getting suppressed / Edmini misbehaving. Root cause is NOT
+any single bug — it's the speaker centroid being WEAK + likely CHANNEL-MISMATCHED.
+- **`edmini-bz6` (needs-verification):** reduced server-VAD `threshold` 0.5→0.6 (`0191e17`). Live repro:
+  fresh phone → enroll → Edmini spoke unprompted (a quiet enrollment-tail blip committed a turn the
+  just-enrolled principal grader "responded" to, improvising from history — NOT the catch-up, which is
+  harness-only). Higher threshold drops quiet blips upstream (no latency, no soft-speech clipping). Residual:
+  a LOUD non-speech sound still commits → confidence gate (defer/voiced-window) remains the deeper fix. Tunable.
+- **Bug triage (today's logs, NOT bugs in the deletion path):**
+  - "Deleted a non-principal → Edmini stopped responding": NOT causal. Logs show George's OWN voice scoring
+    **0.16–0.35 vs the 0.35 respond threshold** → intermittent suppression. The grader's principal score is
+    mathematically independent of other roster members (confirmed in `scoreWindow`) — removing Brandon can't
+    change George's cosine. Root cause = weak centroid (ce9). Remove button correctly preserves the principal.
+  - "Saw transcript from someone no longer enrolled": code-confirmed a deleted member CANNOT be re-attributed
+    (classifier scores current roster; names resolve via current roster ref). It's PAST turns persisting —
+    deleting a voiceprint doesn't scrub that speaker's logged turns from the ledger/transcript/history (by
+    design). Real privacy/UX question, not a labeling bug. (Positive: the `cdu` multi-speaker prompt WORKED —
+    Edmini refused the bystander "Brandon" and attributed him, seq 290/305.)
+- **`edmini-f1l` (needs-verification):** longer enrollment — windows 30→60, timeout 20s→35s, passage ~11s→18s
+  (`750bbf2`). User couldn't finish the sentence in 10s → centroid missed later phonemes. More voiced windows
+  → more representative d-vector. Length helps but won't fully fix 0.3 (model scores ~0.83 same-speaker).
+- **`edmini-2vi` (P2, NEW):** the likely REAL cause of 0.3 — **channel/device mismatch** (a centroid enrolled
+  on one mic scores ~0.3 on another; user bounces phone↔desktop). Proposal (user): flag `{deviceId,label}` at
+  enroll + support multiple centroids per input/device, picked at runtime. Phased: (1) flag + mismatch warning
+  (local, cheap, diagnostic), (2) per-input centroids, (3) multi-condition average.
+- **`edmini-epn` (P2) sharpened:** Google SSO driver = "detect user per device/audio input" — the account ties
+  a user's per-device voiceprints together (cross-device half of `2vi`). `2vi` local slice ships without SSO.
+- **`edmini-xct`:** noted client-side VAD won't cut traffic on WebRTC (continuous track); real lever is
+  gate-before-send (conflicts with grade-and-suppress + multi-speaker) or WebSocket transport. Premature for prototype.
 
 ## CHECKPOINT (2026-06-23d) — language (in + out), multi-speaker, cross-device, cursor redesign
 - **Language, both axes, VERIFIED:** `edmini-h8b` (INPUT) — `transcription.language="en"`; user turns all
