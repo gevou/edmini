@@ -23,17 +23,21 @@ import type { EnrollProgress, ScoreEvent, TargetSpeakerVad } from "../pipeline";
 
 type Step = "intro" | "recording" | "verify" | "name" | "error";
 
-/** ~11s of neutral, phonetically varied speech (the standard "Rainbow Passage" opening). The words
- *  don't matter to the model — this just gives the user something to say so they don't freeze. */
+/** ~18s of neutral, phonetically varied speech (the standard "Rainbow Passage" opening). The words
+ *  don't matter to the model — this just gives the user enough to say so they don't freeze or run out
+ *  before the longer capture (edmini-f1l) fills. */
 const SAMPLE_PASSAGE =
   "When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. " +
-  "The rainbow is a division of white light into many beautiful colors.";
+  "The rainbow is a division of white light into many beautiful colors. " +
+  "These take the shape of a long round arch, with its path high above, and its two ends apparently " +
+  "beyond the horizon. There is, according to legend, a boiling pot of gold at one end.";
 
 export interface VoiceEnrollmentProps {
   vad: TargetSpeakerVad;
   onComplete: (e: Enrollment) => void;
   onCancel?: () => void;
-  /** Target voiced windows to capture (~30 ≈ 8–12s of speech depending on embed speed). */
+  /** Target voiced windows to capture (~60 ≈ 15–20s of speech depending on embed speed). More windows →
+   *  a more representative d-vector → higher self-scores (edmini-f1l). */
   windows?: number;
   /** RMS floor for "this is speech, not silence." Tune per device. */
   minLevel?: number;
@@ -43,7 +47,7 @@ export function VoiceEnrollment({
   vad,
   onComplete,
   onCancel,
-  windows = 30,
+  windows = 60,
   minLevel = 0.015,
 }: VoiceEnrollmentProps) {
   const [step, setStep] = useState<Step>("intro");
@@ -71,7 +75,7 @@ export function VoiceEnrollment({
     setProgress({ collected: 0, target: windows, level: 0, voiced: false });
     setStep("recording");
     vad
-      .enroll({ windows, minLevel, timeoutMs: 20000, onProgress: setProgress })
+      .enroll({ windows, minLevel, timeoutMs: 35000, onProgress: setProgress })
       .then((e) => {
         enrollmentRef.current = e;
         startSelfTest();
