@@ -1168,15 +1168,20 @@ export default function VoiceAgent() {
           >
             key
           </button>}
+        </div>
+      </header>
+
+      {/* Speaker-ID panel — full-width, touch-friendly. Eventually moves to its own screen (UI later). */}
+      <div className="shrink-0 px-6 pb-3" style={{ background: bgColor }}>
+        <div className="flex items-center justify-between gap-3 mb-2">
           <span
-            className="mt-1 text-white/20 text-xs tracking-widest uppercase"
+            className="text-[11px] tracking-widest uppercase text-white/30 shrink-0"
             title="Ed acts only on your enrolled voice; other enrolled people are identified, not obeyed"
           >
             speaker id
           </span>
-          {/* Live grading status — speaker ID is always on; enrollment decides whether it gates */}
           <span
-            className="text-[10px] tracking-wide normal-case"
+            className="text-[11px] tracking-wide normal-case text-right"
             title="Live speaker-grading status this session"
             style={{ color: gradingState === "unavailable" ? "#f87171" : gradingState === "active" && roster.principalId ? "#4ade80" : "rgba(255,255,255,0.30)" }}
           >
@@ -1189,74 +1194,76 @@ export default function VoiceAgent() {
                   })()
                 : "start a session to activate"}
           </span>
-          <>
-              <button
-                onClick={() => { if (canEnroll) { setShowEnroll(true); setEnrolling(true); } }}
-                disabled={!canEnroll}
-                title={canEnroll ? undefined : "Start a session to add a voice"}
-                className={`mt-1 text-xs tracking-widest uppercase ${canEnroll ? "text-white/20 hover:text-white/40" : "text-white/10 cursor-not-allowed"}`}
-              >
-                {roster.principalId ? "add another voice" : "enroll"}
-              </button>
-              {/* Roster member list — persists across sessions; small, unobtrusive */}
-              {roster.members.length > 0 && (
-                <div className="mt-1 flex flex-col items-end gap-0.5">
-                  {roster.members.map((m) => (
-                    <div key={m.id} className="flex items-center gap-1">
-                      {/* Principal toggle (edmini-ncw): ★ = the one voice Ed gates to + responds to. */}
-                      <button
-                        title={m.id === roster.principalId
-                          ? "Principal — the voice Ed responds to"
-                          : "Make principal — Ed will respond to this voice"}
-                        onClick={() => { if (m.id !== roster.principalId) commitRoster({ ...roster, principalId: m.id }); }}
-                        className="text-[10px] leading-none"
-                        style={{ lineHeight: 1, padding: "0 2px", color: m.id === roster.principalId ? "#f59e0b" : "rgba(255,255,255,0.20)", cursor: m.id === roster.principalId ? "default" : "pointer" }}
-                      >
-                        {m.id === roster.principalId ? "★" : "☆"}
-                      </button>
-                      {editingMemberId === m.id ? (
-                        <input
-                          autoFocus
-                          value={draftName}
-                          onChange={(e) => setDraftName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveRename(m.id);
-                            else if (e.key === "Escape") setEditingMemberId(null);
-                          }}
-                          onBlur={() => saveRename(m.id)}
-                          placeholder={rosterMemberLabel(m, roster)}
-                          maxLength={40}
-                          className="text-[10px] text-white/70 tracking-wide bg-transparent outline-none w-24 text-right"
-                          style={{ borderBottom: "1px solid rgba(255,255,255,0.25)" }}
-                        />
-                      ) : (
-                        <button
-                          title="Rename"
-                          onClick={() => { setEditingMemberId(m.id); setDraftName(m.name ?? ""); }}
-                          className="text-[10px] text-white/25 tracking-wide hover:text-white/45"
-                        >
-                          {rosterMemberLabel(m, roster)}
-                        </button>
-                      )}
-                      <button
-                        title={`Remove ${rosterMemberLabel(m, roster)}`}
-                        onClick={() => {
-                          const remaining = roster.members.filter((x) => x.id !== m.id);
-                          const newPrincipalId = remaining.find((x) => x.id === roster.principalId)?.id ?? null;
-                          commitRoster({ principalId: newPrincipalId, members: remaining });
-                        }}
-                        className="text-[10px] text-white/15 hover:text-white/40 leading-none"
-                        style={{ lineHeight: 1, padding: "1px 2px" }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
         </div>
-      </header>
+        <button
+          onClick={() => { if (canEnroll) { setShowEnroll(true); setEnrolling(true); } }}
+          disabled={!canEnroll}
+          title={canEnroll ? undefined : "Start a session to add a voice"}
+          className="w-full rounded-xl py-3 text-sm font-medium tracking-widest uppercase transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: accentColor }}
+        >
+          {roster.principalId ? "+ add another voice" : "enroll my voice"}
+        </button>
+        {roster.members.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {roster.members.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center gap-2 rounded-xl px-2"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", minHeight: 48 }}
+              >
+                {/* Principal toggle (edmini-ncw): ★ = the one voice Ed gates to + responds to. */}
+                <button
+                  title={m.id === roster.principalId
+                    ? "Principal — the voice Ed responds to"
+                    : "Make principal — Ed will respond to this voice"}
+                  onClick={() => { if (m.id !== roster.principalId) commitRoster({ ...roster, principalId: m.id }); }}
+                  className="shrink-0 text-2xl leading-none flex items-center justify-center"
+                  style={{ width: 40, height: 44, color: m.id === roster.principalId ? "#f59e0b" : "rgba(255,255,255,0.25)", cursor: m.id === roster.principalId ? "default" : "pointer" }}
+                >
+                  {m.id === roster.principalId ? "★" : "☆"}
+                </button>
+                {editingMemberId === m.id ? (
+                  <input
+                    autoFocus
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveRename(m.id);
+                      else if (e.key === "Escape") setEditingMemberId(null);
+                    }}
+                    onBlur={() => saveRename(m.id)}
+                    placeholder={rosterMemberLabel(m, roster)}
+                    maxLength={40}
+                    className="flex-1 min-w-0 text-sm text-white/90 bg-transparent outline-none"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.3)", padding: "4px 0" }}
+                  />
+                ) : (
+                  <button
+                    title="Tap to rename"
+                    onClick={() => { setEditingMemberId(m.id); setDraftName(m.name ?? ""); }}
+                    className="flex-1 min-w-0 text-left text-sm text-white/80 hover:text-white truncate"
+                  >
+                    {rosterMemberLabel(m, roster)}
+                  </button>
+                )}
+                <button
+                  title={`Remove ${rosterMemberLabel(m, roster)}`}
+                  onClick={() => {
+                    const remaining = roster.members.filter((x) => x.id !== m.id);
+                    const newPrincipalId = remaining.find((x) => x.id === roster.principalId)?.id ?? null;
+                    commitRoster({ principalId: newPrincipalId, members: remaining });
+                  }}
+                  className="shrink-0 text-2xl leading-none flex items-center justify-center text-white/30 hover:text-white/60"
+                  style={{ width: 40, height: 44 }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Scrollable transcript — only this area scrolls */}
       <div
