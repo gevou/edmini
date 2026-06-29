@@ -26,7 +26,10 @@ export interface UtteranceGrader {
 }
 
 export function createUtteranceGrader(policy: GraderPolicy = {}): UtteranceGrader {
-  const respondThreshold = policy.respondThreshold ?? 0.35;
+  // 0.30 (edmini-1oa): on-device, the principal's own voice scores ~0.44–0.48 after a clean longer
+  // enrollment (f1l) — above 0.35 but thin margin; strangers score ~0.05–0.15, so 0.30 widens the
+  // principal's headroom (~0.14–0.18) while still rejecting non-principals. Re-tune per device/environment.
+  const respondThreshold = policy.respondThreshold ?? 0.30;
   const minVoicedWindows = policy.minVoicedWindows ?? 4;
   const voicedLevelFloor = policy.voicedLevelFloor ?? 0.015;
 
