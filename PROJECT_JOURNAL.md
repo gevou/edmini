@@ -20,7 +20,47 @@ produced ever silently disappears.
 
 ## Journal Entries
 
-### 2026-06-25 — chasing "why won't it hear me" to the wrong door, three times
+### 2026-06-25 — the centroid fix lands, and the science gets a home
+
+A short, satisfying coda to the "George keeps getting suppressed" saga — and the moment the project's
+research ambitions got their own filing cabinet.
+
+**The fix worked, measurably.** After the longer enrollment (`f1l`), the user re-tested and reported his
+self-score had risen to ~0.44–0.48 — up from the 0.16–0.35 that had been dropping him. *"Check the logs
+yourself,"* he said, and the ledger confirmed the *effect*, not just the number: in the new session every
+one of his turns was responded to, **zero `heard` suppressions**, against the previous session's string of
+them at 0.16–0.30. Then the diagnostic detail that closed the loop: *"same device but different (quiet)
+environment."* Same mic ⇒ **not channel mismatch** ⇒ the residual gap to a healthy ~0.83 is acoustic
+environment + this model compressing his voice — which means the **threshold** is the right lever, not
+per-device centroids. So I dropped the grader's `respondThreshold` 0.35→0.30 (`8b7cd80`): he sits at
+0.44–0.48 with ~0.15 of headroom, strangers score 0.05–0.15, comfortably separated. Verified all six grader
+tests still pass (nothing asserted between 0.30 and 0.35) before shipping.
+
+A small process note worth keeping: he couldn't test with an actual stranger present, but didn't want that
+to block — *"mark this as verified, I don't want to block other work. File a separate ticket for the
+future."* Right call, and the right shape: flip `1oa` verified on the principal-margin evidence we *do*
+have, and carve the stranger-rejection check into its own decoupled ticket (`h6j`) so a missing test
+doesn't hold a working change hostage.
+
+**And the science got a home.** The recurring tension all arc has been that we keep *measuring* speaker-ID
+behavior (the `eer.ts` verification-EER harness, the `ce9` bake-off, every ledger-confidence reading) but
+ad-hoc, one device and one voice at a time. The user named the latent thing: *"what experiment should we
+run to make this more scientific (for publication purposes) — multiple devices, environments, people?"* —
+and, crucially, *"this should not be prioritized… I want to have it as a separate (deferred) epic."* So I
+wrote a real protocol into `edmini-x54`: a speakers × devices × environments matrix, verification EER + CI
+**per condition** to separate channel degradation from environment degradation, plus arms for
+multi-condition enrollment (`2vi`) and enrollment length (`f1l`), all riding the existing
+`tsvad:validate` pipeline. Deferred to December, decomposed-on-activation, subsuming `dn9`. The nice thing
+about filing it as a deferred epic: the design is captured while it's fresh, with zero pressure to act.
+
+Also shipped today: the speaker-ID controls, which had been an unusable text-[10px] huddle in the top-right
+corner, became a **full-width touch-friendly panel** on mobile (`6wu`) — verified at 375px.
+
+**Content potential:** two things. The arc itself — a voice agent that wouldn't hear its own owner, run to
+ground through enrollment length, threshold, and finally *acoustic environment*, with the key clue ("same
+device") coming from the user living in the symptom. And the meta-move: turning a string of ad-hoc
+measurements into a *deferred research epic* — the discipline of writing the experiment design down the
+moment the questions are sharp, even when you can't run it yet.
 
 A debugging session that kept finding the culprit behind a *different* door than the one the symptom pointed
 at — and the user, not me, eventually named the real one.

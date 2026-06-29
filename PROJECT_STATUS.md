@@ -1,8 +1,26 @@
 # edmini — Project Status
 
 ## Branch / VCS
-`main` (git), in sync with origin. Latest `750bbf2`. Beads synced to the Dolt remote
+`main` (git), in sync with origin. Latest `8b7cd80`. Beads synced to the Dolt remote
 (`bd dolt push`; `refs/dolt/data` on GitHub).
+
+## CHECKPOINT (2026-06-25b) — speaker-ID reliability RESOLVED + mobile UI + research epic
+The "George keeps getting suppressed" thread is now fixed end-to-end (longer enroll + lower threshold):
+- **`edmini-f1l` VERIFIED:** longer enrollment (30→60 windows) lifted George's self-score 0.16–0.35 → **~0.44–0.48**
+  (ledger: new session seq 313–316 responded to EVERY turn, zero suppressions). Same device, different/quiet
+  environment → NOT channel mismatch; residual gap vs ~0.83 = acoustic/env variation + model compression.
+- **`edmini-1oa` VERIFIED:** dropped grader `respondThreshold` 0.35→0.30 (`8b7cd80`) → ~0.14–0.18 margin for the
+  principal; strangers (0.05–0.15) still rejected. Gates the PRINCIPAL only (classifier absThreshold left 0.35).
+  Stranger-rejection test deferred → **`edmini-h6j`** (P3): verify no stranger admitted at 0.30, else nudge to 0.32.
+- **`edmini-6wu` (needs-verification):** speaker-ID controls moved from the cramped top-right text-[10px] cluster
+  into a **full-width, touch-friendly panel** below the header (full-width enroll button + roster cards, ★/× as
+  40×44 tap targets, tap-to-rename). `ab0079a`. Eventually → its own screen.
+- **`edmini-x54` (P4, DEFERRED — until 2026-12-01):** **[EPIC] Scientific evaluation of on-device target-speaker
+  VAD (toward publication)** — speakers × devices × environments matrix; verification EER + CI per condition
+  (channel vs environment degradation), multi-condition + enrollment-length arms; extends the `eer.ts` harness
+  (`txc`) + `ce9` bake-off; subsumes `dn9` (data). Full protocol in the bead's design field. Not prioritized.
+- **`edmini-2vi` note:** same-device finding → per-device centroids moot for this case; relevant axis is
+  multi-condition enrollment. Per-device still matters for genuine phone↔laptop.
 
 ## CHECKPOINT (2026-06-25) — speaker-ID reliability: phantom blips, weak centroid, channel mismatch
 The session's thread: George (principal) keeps getting suppressed / Edmini misbehaving. Root cause is NOT
